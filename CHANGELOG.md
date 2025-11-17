@@ -1,3 +1,22 @@
+## [0.6.0] - 2025-11-17
+
+### Features
+
+- Add FromIterator<Box<dyn Sound>> for SoundList
+- [**breaking**] Change default sample rate to 48,000
+- Add AsRef<[i16]> for MemorySound
+- Add SineWave::as_memory_sound for pre-computed samples
+- [**breaking**] Update cpal to 0.16
+
+### Bug Fixes
+
+- Sample rate converter not handling metadata changed properly in some situations
+- Sound_mixer returns Paused instead of Finished.
+- Update test for "fix: sound_mixer returns Paused instead of Finished.""
+
+### Documentation
+
+- README, fix link to BackendSource
 ## [0.5.0] - 2025-06-02
 
 ### Features
