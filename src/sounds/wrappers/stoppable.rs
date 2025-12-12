@@ -1,4 +1,4 @@
-use crate::Sound;
+use crate::{sounds::wrappers::SetPaused, Sound};
 
 use super::{SetSpeed, SetVolume};
 
@@ -84,6 +84,15 @@ where
 {
     fn set_stopped(&mut self) {
         self.stopped = true;
+    }
+}
+
+impl<S> SetPaused for Stoppable<S>
+where
+    S: Sound + SetPaused,
+{
+    fn set_paused(&mut self, paused: bool) {
+        self.inner.set_paused(paused)
     }
 }
 
