@@ -19,7 +19,10 @@ impl SineWave {
     }
 
     /// A constant pitch sound with `sample_rate`.
+    ///
+    /// freq must be greater than 0 Hz.
     pub fn with_sample_rate(freq: f32, sample_rate: u32) -> SineWave {
+        assert!(freq > 0.0);
         let reset_num = find_reset_num(freq, sample_rate);
 
         SineWave {
@@ -50,23 +53,27 @@ impl SineWave {
 /// be close to 0 to minimize distortion when resetting.
 ///
 /// We want to minimize the sample number though because large numbers
-/// cause distortions
+/// cause distortions and also minimize memory usage for as_memory_sound.
 fn find_reset_num(freq: f32, sample_rate: u32) -> u32 {
-    let mut best_error = f64::MAX;
+    let mut best_error = i16::MAX;
     let mut best_reset_num = 0;
 
-    for multiple in 1..100 {
+    for multiple in 1..=500 {
         let reset_num = sample_rate as f64 * (multiple as f64) / freq as f64;
-        let error = (reset_num.round() - reset_num).abs();
+        let actual_sample = sample_for(reset_num.round() as f32, freq, sample_rate as f32);
+        let error = actual_sample.abs(); // 0 is our ideal sample
         if error < best_error {
             best_error = error;
             best_reset_num = reset_num.round() as u32;
-            if error == 0.0 {
+            if error < 100 {
+                // if the error is less than 0.3% lets go with it
                 break;
             }
         }
     }
 
+    // We start at 0 so we don't want to end at 0 as it would duplicate 0 so we
+    // subtract 1
     best_reset_num - 1
 }
 
@@ -85,12 +92,19 @@ impl crate::Sound for SineWave {
         } else {
             self.sample_num += 1;
         }
-        let value = self.sample_num as f32 * self.freq * TAU / self.sample_rate as f32;
-        let sample = (value.sin() * i16::MAX as f32) as i16;
-        Ok(crate::NextSample::Sample(sample))
+        Ok(crate::NextSample::Sample(sample_for(
+            self.sample_num as f32,
+            self.freq,
+            self.sample_rate as f32,
+        )))
     }
 
     fn on_start_of_batch(&mut self) {}
+}
+
+fn sample_for(sample_num: f32, freq: f32, sample_rate: f32) -> i16 {
+    let value = sample_num * freq * TAU / sample_rate;
+    (value.sin() * i16::MAX as f32) as i16
 }
 
 #[cfg(test)]

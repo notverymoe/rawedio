@@ -56,3 +56,16 @@ fn low_freq_wav_memory_sound() {
     assert_eq!(wav.channel_count(), 1);
     assert_eq!(wav.next_sample().unwrap(), NextSample::Sample(85));
 }
+
+#[test]
+fn max_as_memory_sound_size() {
+    let mut max_num_samples = 0;
+    for hz in 20..20_000 {
+        let wav = SineWave::as_memory_sound(hz as f32, 48000);
+        let num_samples = wav.as_ref().len();
+        if num_samples > max_num_samples {
+            max_num_samples = num_samples;
+        }
+    }
+    assert_eq!(max_num_samples, 2400);
+}
