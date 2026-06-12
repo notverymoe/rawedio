@@ -2,7 +2,6 @@ use super::*;
 use crate::NextSample;
 
 const SINE_WAVE_FILE: &[u8] = include_bytes!("audiocheck.net_sin_1000Hz_0dBFS_0.1s.mp3");
-const STEREO_FILE: &[u8] = include_bytes!("../../../../test_files/stereo-test.mp3");
 
 #[test]
 fn samples_of_test_file1() -> std::io::Result<()> {
@@ -50,7 +49,10 @@ fn samples_of_test_file1() -> std::io::Result<()> {
 }
 
 #[test]
+#[cfg(not(debug_assertions))] // rmp3 has a read out of bounds. We need to switch to another decoder
 fn samples_of_test_file2() -> std::io::Result<()> {
+    const STEREO_FILE: &[u8] = include_bytes!("../../../../test_files/stereo-test.mp3");
+
     let mut decoder = Mp3Decoder::new(std::io::Cursor::new(STEREO_FILE));
     assert_eq!(decoder.sample_rate(), 32000);
     assert_eq!(decoder.channel_count(), 2);

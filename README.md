@@ -73,7 +73,9 @@ Backends are implemented by pulling samples from a
   [Symphonia](https://crates.io/crates/symphonia)
 - `symphonia-`: All feature flags of symphonia are re-exported with the `symphonia-` prefix.
 - `hound-wav`: Enable wav decoding using [Hound](https://crates.io/crates/hound)
-- `rmp3-mp3`: Enable mp3 decoding using [rmp3](https://crates.io/crates/rmp3)
+- `rmp3-mp3`: Enable mp3 decoding using [rmp3](https://crates.io/crates/rmp3).
+  Symphonia handles mp3 decoding by default. rmp3 is not recommended as it is no
+  longer maintained and has memory safety issues.
 - `qoa`: Enable qoa decoding using [qoaudio](https://crates.io/crates/qoaudio)
 
 By default all features are enabled excluding `hound-wav` and `rmp3-mp3`
