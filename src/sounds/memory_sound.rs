@@ -69,7 +69,7 @@ impl MemorySound {
                     if channel_idx != 0 {
                         let outputs_to_stay_in_sync = channel_count as usize - channel_idx;
                         // This should be rare so lets just output 0 for the filler samples.
-                        samples.extend(std::iter::repeat(0).take(outputs_to_stay_in_sync));
+                        samples.extend(std::iter::repeat_n(0, outputs_to_stay_in_sync));
                     }
                 }
                 crate::NextSample::Paused | crate::NextSample::Finished => break,

@@ -94,7 +94,7 @@ where
 
 // Lossy
 fn f32_to_i16(f: f32) -> i16 {
-    (f.max(-1.0).min(1.0) * i16::MAX as f32) as i16
+    (f.clamp(-1.0, 1.0) * i16::MAX as f32) as i16
 }
 
 fn i8_to_i16(i: i8) -> i16 {

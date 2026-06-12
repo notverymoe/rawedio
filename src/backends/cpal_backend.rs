@@ -161,7 +161,7 @@ where
     T: SizedSample + FromSample<i16>,
 {
     move |buffer: &mut [T], _info: &cpal::OutputCallbackInfo| {
-        assert!(buffer.len() % channel_count as usize == 0);
+        assert!(buffer.len().is_multiple_of(channel_count as usize));
 
         renderer.on_start_of_batch();
 
