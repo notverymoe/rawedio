@@ -7,8 +7,7 @@ use crate::{
 };
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    BackendSpecificError, BuildStreamError, DefaultStreamConfigError, FromSample, PlayStreamError,
-    Sample, StreamError,
+    Error as CpalError, ErrorKind, FromSample, SizedSample,
 };
 use std::error::Error;
 
@@ -37,7 +36,7 @@ impl CpalBackend {
         let device = host.default_output_device()?;
 
         let default_config = device.default_output_config().ok()?;
-        let sample_rate = default_config.sample_rate().0;
+        let sample_rate = default_config.sample_rate();
         let channel_count = default_config.channels();
         let sample_format = default_config.sample_format();
 
@@ -101,7 +100,7 @@ impl CpalBackend {
     /// Cpal stream errors will be reported by calling `error_callback`.
     pub fn start<E>(&mut self, error_callback: E) -> Result<Manager, CpalBackendError>
     where
-        E: FnMut(StreamError) + Send + 'static,
+        E: FnMut(CpalError) + Send + 'static,
     {
         let (manager, mut renderer) = Manager::new();
         renderer.set_output_channel_count_and_sample_rate(self.channel_count, self.sample_rate);
@@ -111,39 +110,42 @@ impl CpalBackend {
 
         let config = cpal::StreamConfig {
             channels: self.channel_count,
-            sample_rate: cpal::SampleRate(self.sample_rate),
+            sample_rate: self.sample_rate,
             buffer_size: self.buffer_size,
         };
 
         let timeout = None;
         let stream = match self.sample_format {
-            cpal::SampleFormat::I16 => self.device.build_output_stream(
-                &config,
-                make_data_callback::<i16>(renderer, self.channel_count),
-                error_callback,
-                timeout,
-            )?,
-            cpal::SampleFormat::F32 => self.device.build_output_stream(
-                &config,
-                make_data_callback::<f32>(renderer, self.channel_count),
-                error_callback,
-                timeout,
-            )?,
+            cpal::SampleFormat::I16 => self
+                .device
+                .build_output_stream(
+                    config,
+                    make_data_callback::<i16>(renderer, self.channel_count),
+                    error_callback,
+                    timeout,
+                )
+                .map_err(CpalBackendError::BuildStream)?,
+            cpal::SampleFormat::F32 => self
+                .device
+                .build_output_stream(
+                    config,
+                    make_data_callback::<f32>(renderer, self.channel_count),
+                    error_callback,
+                    timeout,
+                )
+                .map_err(CpalBackendError::BuildStream)?,
             sample_format => {
-                return Err(CpalBackendError::BuildStream(
-                    BuildStreamError::BackendSpecific {
-                        err: BackendSpecificError {
-                            description: format!(
-                                "unsupported output stream sample format: {:?}",
-                                sample_format
-                            ),
-                        },
-                    },
-                ))
+                return Err(CpalBackendError::BuildStream(CpalError::with_message(
+                    ErrorKind::UnsupportedConfig,
+                    format!(
+                        "unsupported output stream sample format: {:?}",
+                        sample_format
+                    ),
+                )))
             }
         };
 
-        stream.play()?;
+        stream.play().map_err(CpalBackendError::PlayStream)?;
         self.stream = Some(stream);
         Ok(manager)
     }
@@ -156,7 +158,7 @@ fn make_data_callback<T>(
     channel_count: u16,
 ) -> impl FnMut(&mut [T], &cpal::OutputCallbackInfo)
 where
-    T: Sample + FromSample<i16>,
+    T: SizedSample + FromSample<i16>,
 {
     move |buffer: &mut [T], _info: &cpal::OutputCallbackInfo| {
         assert!(buffer.len() % channel_count as usize == 0);
@@ -185,31 +187,9 @@ pub enum CpalBackendError {
     /// No output device or configuration found.
     NoDevice,
     /// An error while building the output stream
-    BuildStream(BuildStreamError),
+    BuildStream(CpalError),
     /// An error while starting to play the stream.
-    PlayStream(PlayStreamError),
-}
-
-impl From<BuildStreamError> for CpalBackendError {
-    fn from(inner: BuildStreamError) -> Self {
-        CpalBackendError::BuildStream(inner)
-    }
-}
-
-impl From<PlayStreamError> for CpalBackendError {
-    fn from(inner: PlayStreamError) -> Self {
-        CpalBackendError::PlayStream(inner)
-    }
-}
-
-impl From<DefaultStreamConfigError> for CpalBackendError {
-    fn from(inner: DefaultStreamConfigError) -> Self {
-        CpalBackendError::BuildStream(BuildStreamError::BackendSpecific {
-            err: BackendSpecificError {
-                description: format!("default stream config error: {:?}", inner),
-            },
-        })
-    }
+    PlayStream(CpalError),
 }
 
 impl std::fmt::Display for CpalBackendError {
