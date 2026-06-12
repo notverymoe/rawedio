@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::tests::{Sawtooth, ConstantValueSound};
+    use crate::tests::{ConstantValueSound, Sawtooth};
     use crate::{NextSample, Sound};
 
     #[test]
@@ -8,7 +8,7 @@ mod tests {
         let mut sound = ConstantValueSound::new(42);
         assert_eq!(sound.channel_count(), 2);
         assert_eq!(sound.sample_rate(), 44100);
-        
+
         // First sample should be the constant value
         assert_eq!(sound.next_sample().unwrap(), NextSample::Sample(42));
     }
@@ -41,7 +41,7 @@ mod tests {
     #[test]
     fn test_sawtooth_basic() {
         let mut sound = Sawtooth::new(1, 44100);
-        
+
         // Mono sawtooth should increment each sample
         assert_eq!(sound.next_sample().unwrap(), NextSample::Sample(0));
         assert_eq!(sound.next_sample().unwrap(), NextSample::Sample(1));
@@ -51,7 +51,7 @@ mod tests {
     #[test]
     fn test_sawtooth_stereo() {
         let mut sound = Sawtooth::new(2, 44100);
-        
+
         // Stereo sawtooth should increment every other sample
         assert_eq!(sound.next_sample().unwrap(), NextSample::Sample(0)); // L
         assert_eq!(sound.next_sample().unwrap(), NextSample::Sample(0)); // R
@@ -63,8 +63,11 @@ mod tests {
     fn test_sawtooth_wrap_around() {
         let mut sound = Sawtooth::new(1, 44100);
         sound.value = i16::MAX - 1;
-        
-        assert_eq!(sound.next_sample().unwrap(), NextSample::Sample(i16::MAX - 1));
+
+        assert_eq!(
+            sound.next_sample().unwrap(),
+            NextSample::Sample(i16::MAX - 1)
+        );
         assert_eq!(sound.next_sample().unwrap(), NextSample::Sample(i16::MAX));
         assert_eq!(sound.next_sample().unwrap(), NextSample::Sample(i16::MIN));
     }
