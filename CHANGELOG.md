@@ -2,8 +2,6 @@
 
 ### Features
 
-- Impl SetPaused for Stoppable
-- Impl SetStopped for Pausable
 - Improve SineWave::as_memory_sound to reduce memory usage
 - [**breaking**] Upgrade cpal to 0.18
 - [**breaking**] Upgrade symphonia to 0.6
@@ -19,6 +17,14 @@
 - Minor clippy suggestions
 - Format only change
 - Gate README doc tests on cpal feature
+
+## [0.7.0] - 2026-06-12
+
+### Features
+
+- Impl SetPaused for Stoppable
+- Impl SetStopped for Pausable
+
 
 ## [0.6.0] - 2025-11-17
 
