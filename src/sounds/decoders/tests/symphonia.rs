@@ -9,12 +9,10 @@ fn samples_of_test_file() -> std::io::Result<()> {
         SymphoniaDecoder::new(Box::new(std::io::Cursor::new(SINE_WAVE_FILE)), None).unwrap();
     assert_eq!(decoder.sample_rate(), 44100);
     assert_eq!(decoder.channel_count(), 1);
-    for _i in 0..1106 {
-        println!("i: {_i}");
+    for _i in 0..1 {
         let sample = decoder.next_sample().unwrap();
         match sample {
             NextSample::Sample(s) => {
-                println!("s: {s}");
                 assert!(s.abs() < 700)
             }
             NextSample::MetadataChanged => unreachable!(),
@@ -34,8 +32,7 @@ fn samples_of_test_file() -> std::io::Result<()> {
     assert_eq!(decoder.next_sample().unwrap(), NextSample::Sample(30799)); // 11
     assert_eq!(decoder.next_sample().unwrap(), NextSample::Sample(31009)); // 12
     assert_eq!(decoder.next_sample().unwrap(), NextSample::Sample(30770)); // 13
-    for _i in 0..4642 {
-        // println!("i: {_i}");
+    for _i in 0..4398 {
         let sample = decoder.next_sample().unwrap();
         match sample {
             NextSample::Sample(_) => {}

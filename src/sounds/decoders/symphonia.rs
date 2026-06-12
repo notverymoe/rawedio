@@ -1,20 +1,22 @@
 use crate::NextSample;
 use crate::Sound;
-use symphonia::core::audio::{AudioBuffer, AudioBufferRef, Channels, Signal};
-use symphonia::core::codecs::{Decoder, DecoderOptions, CODEC_TYPE_NULL};
-use symphonia::core::conv::FromSample;
+use symphonia::core::audio::conv::FromSample;
+use symphonia::core::audio::sample::Sample;
+use symphonia::core::audio::{Audio, AudioBuffer, Channels, GenericAudioBufferRef};
+use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions, CODEC_ID_NULL_AUDIO};
+use symphonia::core::codecs::CodecParameters;
+use symphonia::core::common::Limit;
 use symphonia::core::errors::Error;
+use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::{MediaSource, MediaSourceStream};
-use symphonia::core::meta::{Limit, MetadataOptions};
-use symphonia::core::probe::Hint;
-use symphonia::core::sample::Sample;
+use symphonia::core::meta::MetadataOptions;
 
 /// Decode formats using the Symphonia crate decoders.
 pub struct SymphoniaDecoder {
     sample_rate: u32,
 
-    decoder: Box<dyn Decoder>,
+    decoder: Box<dyn AudioDecoder>,
     format: Box<dyn FormatReader>,
 
     channels: Channels,
@@ -37,33 +39,37 @@ impl SymphoniaDecoder {
         if let Some(extension) = extension {
             hint.with_extension(extension);
         }
-        let meta_opts: MetadataOptions = MetadataOptions {
-            limit_metadata_bytes: Limit::Maximum(1),
-            limit_visual_bytes: Limit::Maximum(1),
-        };
+        let meta_opts = MetadataOptions::default()
+            .limit_tag_bytes(Limit::Maximum(1))
+            .limit_visual_bytes(Limit::Maximum(1));
         let fmt_opts: FormatOptions = Default::default();
-        let probed = symphonia::default::get_probe().format(&hint, mss, &fmt_opts, &meta_opts)?;
-
-        let format = probed.format;
+        let format = symphonia::default::get_probe().probe(&hint, mss, fmt_opts, meta_opts)?;
 
         // Find the first audio track with a known (decodable) codec.
         let track = format
             .tracks()
             .iter()
-            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .find(|t| {
+                matches!(&t.codec_params, Some(CodecParameters::Audio(p)) if p.codec != CODEC_ID_NULL_AUDIO)
+            })
             .ok_or(Error::Unsupported(
                 "No track with a supported codec was found",
             ))?;
         let track_id = track.id;
+        let audio_params = match &track.codec_params {
+            Some(CodecParameters::Audio(p)) => p.clone(),
+            _ => unreachable!(),
+        };
 
-        let dec_opts: DecoderOptions = Default::default();
-        let decoder = symphonia::default::get_codecs().make(&track.codec_params, &dec_opts)?;
+        let dec_opts: AudioDecoderOptions = Default::default();
+        let decoder =
+            symphonia::default::get_codecs().make_audio_decoder(&audio_params, &dec_opts)?;
 
         let mut decoder = SymphoniaDecoder {
             sample_rate: 1000,
             decoder,
             format,
-            channels: Channels::empty(),
+            channels: Channels::None,
             track_id,
             next_channel_idx: 0,
             next_sample_idx: 0,
@@ -91,16 +97,9 @@ impl Sound for SymphoniaDecoder {
         let mut buf_ref = self.decoder.last_decoded();
         if self.next_sample_idx >= buf_ref.frames() {
             match self.decode_next_packet() {
-                Ok(true) => return Ok(NextSample::MetadataChanged),
-                Ok(false) => (),
-                Err(Error::IoError(err))
-                    if err.kind() == std::io::ErrorKind::UnexpectedEof
-                        && err.to_string() == "end of stream" =>
-                {
-                    // According to Symphonia this is the only way to detect an end of stream
-                    return Ok(NextSample::Finished);
-                }
-                // TODO: Handle errors better when awedio allows returning errors.
+                Ok(Some(true)) => return Ok(NextSample::MetadataChanged),
+                Ok(Some(false)) => (),
+                Ok(None) => return Ok(NextSample::Finished),
                 Err(e) => return Err(e.into()),
             };
             buf_ref = self.decoder.last_decoded();
@@ -114,15 +113,17 @@ impl Sound for SymphoniaDecoder {
 }
 
 impl SymphoniaDecoder {
-    fn decode_next_packet(&mut self) -> Result<bool, Error> {
+    fn decode_next_packet(&mut self) -> Result<Option<bool>, Error> {
         loop {
-            let packet = self.format.next_packet()?;
+            let Some(packet) = self.format.next_packet()? else {
+                return Ok(None);
+            };
             // We don't currently use the metadata but pop it off so it does not take
             // memory.
             while !self.format.metadata().is_latest() {
                 self.format.metadata().pop();
             }
-            if packet.track_id() != self.track_id {
+            if packet.track_id != self.track_id {
                 continue;
             }
 
@@ -143,35 +144,35 @@ impl SymphoniaDecoder {
             self.next_channel_idx = 0;
             self.next_sample_idx = 0;
             let mut metadata_changed = false;
-            if buf_ref.spec().channels != self.channels {
-                self.channels = buf_ref.spec().channels;
+            if buf_ref.spec().channels() != &self.channels {
+                self.channels = buf_ref.spec().channels().clone();
                 metadata_changed = true;
             }
-            if buf_ref.spec().rate != self.sample_rate {
-                self.sample_rate = buf_ref.spec().rate;
+            if buf_ref.spec().rate() != self.sample_rate {
+                self.sample_rate = buf_ref.spec().rate();
                 metadata_changed = true;
             }
-            return Ok(metadata_changed);
+            return Ok(Some(metadata_changed));
         }
     }
 }
 
 pub fn extract_sample_from_ref(
-    buffer: &AudioBufferRef,
+    buffer: &GenericAudioBufferRef,
     channel_idx: u16,
     sample_idx: usize,
 ) -> i16 {
     match buffer {
-        AudioBufferRef::U8(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::U16(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::U24(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::U32(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::S8(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::S16(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::S24(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::S32(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::F32(buffer) => extract_sample(buffer, channel_idx, sample_idx),
-        AudioBufferRef::F64(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::U8(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::U16(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::U24(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::U32(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::S8(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::S16(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::S24(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::S32(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::F32(buffer) => extract_sample(buffer, channel_idx, sample_idx),
+        GenericAudioBufferRef::F64(buffer) => extract_sample(buffer, channel_idx, sample_idx),
     }
 }
 
@@ -183,18 +184,14 @@ pub fn extract_sample<S: Sample>(
 where
     i16: FromSample<S>,
 {
-    FromSample::from_sample(buffer.chan(channel_idx as usize)[sample_idx])
+    FromSample::from_sample(buffer.plane(channel_idx as usize).unwrap()[sample_idx])
 }
 
 impl From<Error> for crate::Error {
     fn from(value: Error) -> Self {
         match value {
             Error::IoError(e) => e.into(),
-            Error::DecodeError(_)
-            | Error::SeekError(_)
-            | Error::Unsupported(_)
-            | Error::LimitError(_)
-            | Error::ResetRequired => crate::Error::FormatError(Box::new(value)),
+            e => crate::Error::FormatError(Box::new(e)),
         }
     }
 }
