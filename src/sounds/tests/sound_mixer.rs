@@ -41,14 +41,14 @@ fn empty_sound_list_not_same_sample_rate() {
     let (sound, mut controller) = SoundList::new().controllable();
     mixer.add(Box::new(sound));
     mixer.on_start_of_batch();
-    assert_eq!(NextSample::Finished, mixer.next_sample().unwrap());
+    assert_eq!(NextSample::Paused, mixer.next_sample().unwrap());
     let mut sound = ConstantValueSound::new(5);
 
     sound.set_channel_count(2);
     sound.set_sample_rate(40000);
     controller.add(Box::new(sound));
 
-    assert_eq!(NextSample::Finished, mixer.next_sample().unwrap());
+    assert_eq!(NextSample::Paused, mixer.next_sample().unwrap());
 
     mixer.on_start_of_batch();
     assert_eq!(mixer.next_sample().unwrap(), NextSample::Sample(5));
