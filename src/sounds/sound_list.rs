@@ -54,6 +54,11 @@ impl SoundList {
     pub fn len(&self) -> usize {
         self.sounds.len()
     }
+
+    /// Returns `true` if the list is empty.
+    pub fn is_empty(&self) -> bool {
+        self.sounds.is_empty()
+    }
 }
 
 impl From<Vec<Box<dyn Sound>>> for SoundList {
