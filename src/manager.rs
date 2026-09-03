@@ -1,13 +1,15 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! Manager is how sounds are played on a backend.
 mod backend_source;
 mod renderer;
 
-use crate::sounds::wrappers::Controllable;
-use crate::sounds::wrappers::Controller;
-use crate::sounds::SoundMixer;
-use crate::Sound;
 pub use backend_source::BackendSource;
 pub use renderer::Renderer;
+
+use crate::operators::SoundMixer;
+use crate::wrappers::{Controllable, Controller};
+use crate::Sound;
 
 /// A Manager can play sounds by rendering sounds on a [`Renderer`] for a
 /// backend.
@@ -26,6 +28,7 @@ impl Manager {
     ///
     /// Normally you do not need to call this function directly but you instead
     /// call `.start(...)` on a backend which will call this function.
+    #[must_use]
     pub fn new() -> (Self, Renderer) {
         let (mixer, mixer_controller) =
             Controllable::new(SoundMixer::new(DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE));
@@ -37,7 +40,7 @@ impl Manager {
     /// Add a new Sound to be played in parallel to any existing sounds.
     ///
     /// If you want to play Sounds sequentially use a
-    /// [SoundList][crate::sounds::SoundList].
+    /// [`SoundList`][crate::sounds::SoundList].
     ///
     /// See the modifier functions on [Sound] to control sounds before and/or
     /// after playing.

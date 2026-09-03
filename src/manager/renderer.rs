@@ -1,19 +1,18 @@
-use crate::sounds::wrappers::Controllable;
-use crate::sounds::wrappers::Wrapper;
-use crate::sounds::SoundMixer;
-use crate::NextSample;
-use crate::Sound;
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use super::backend_source::BackendSource;
+use crate::manager::backend_source::BackendSource;
+use crate::operators::SoundMixer;
+use crate::wrappers::{Controllable, Wrapper};
+use crate::{RawedioError, Sound};
 
-/// The default [BackendSource]. Renderer is essentially half of
+/// The default [`BackendSource`]. Renderer is essentially half of
 /// [Manager][crate::manager::Manager].
 pub struct Renderer {
     mixer: Controllable<SoundMixer>,
 }
 
 impl Renderer {
-    pub(crate) fn new(mixer: Controllable<SoundMixer>) -> Self {
+    pub(crate) const fn new(mixer: Controllable<SoundMixer>) -> Self {
         Renderer { mixer }
     }
 }
@@ -39,7 +38,17 @@ impl Sound for Renderer {
         self.mixer.sample_rate()
     }
 
+    /// Inform the playing or queued sounds that a new batch of samples will be
+    /// requested. This must only be called when the next sample to be delivered
+    /// from `next_sample` is for the first channel.
+    ///
+    /// See [`Sound::on_start_of_batch`]
+    fn on_start_of_batch(&mut self) {
+        self.mixer.on_start_of_batch();
+    }
+
     /// Get the next sample.
+    ///
     /// `MetadataChanged` will only be returned from Renderer if
     /// `set_output_channel_count_and_sample_rate` was called. If `Paused`
     /// is returned the backend may choose to pause itself or play silence.
@@ -47,16 +56,10 @@ impl Sound for Renderer {
     /// the Renderer has been dropped.
     ///
     /// Guaranteed to not return an Error.
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
-        self.mixer.next_sample()
-    }
-
-    /// Inform the playing or queued sounds that a new batch of samples will be
-    /// requested. This must only be called when the next sample to be delivered
-    /// from `next_sample` is for the first channel.
-    ///
-    /// See [Sound::on_start_of_batch]
-    fn on_start_of_batch(&mut self) {
-        self.mixer.on_start_of_batch()
+    fn fill_next_frames(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<(usize, crate::NextState), RawedioError> {
+        self.mixer.fill_next_frames(buffer)
     }
 }

@@ -1,0 +1,81 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
+//! [`AsyncCompletionNotifier`] and re-export of the tokio [`oneshot`] channel it
+//! uses for convenience.
+
+pub use tokio::sync::oneshot;
+
+use crate::wrappers::Wrapper;
+use crate::{NextState, RawedioError, Sound};
+
+/// Notify via a [`tokio::sync::oneshot::Receiver`] when the contained Sound has
+/// Finished.
+///
+/// If the Sound is dropped before it returned Finished then the receiver
+/// will return an error. The contained Sound pausing or yielding an error
+/// does not count as completion.
+pub struct AsyncCompletionNotifier<S: Sound> {
+    inner: S,
+    sender: Option<oneshot::Sender<()>>,
+}
+
+impl<S> AsyncCompletionNotifier<S>
+where S: Sound
+{
+    /// Wrap `inner` so a receiver can be notified when `inner` has `Finished`.
+    pub fn new(inner: S) -> (Self, oneshot::Receiver<()>) {
+        let (sender, receiver) = oneshot::channel();
+        let controllable = AsyncCompletionNotifier {
+            inner,
+            sender: Some(sender),
+        };
+
+        (controllable, receiver)
+    }
+}
+
+impl<S> Sound for AsyncCompletionNotifier<S>
+where S: Sound
+{
+    fn channel_count(&self) -> u16 {
+        self.inner.channel_count()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.inner.sample_rate()
+    }
+
+    fn on_start_of_batch(&mut self) {
+        self.inner.on_start_of_batch();
+    }
+
+    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+        let next = self.inner.fill_next_frames(buffer)?;
+        if let (_, NextState::Finished) = next {
+            if let Some(sender) = self.sender.take() {
+                // If the consumer dropped their receiver because they don't need it anymore its
+                // not an error.
+                let _res = sender.send(());
+            }
+        }
+        Ok(next)
+    }
+}
+
+impl<S> Wrapper for AsyncCompletionNotifier<S>
+where S: Sound
+{
+    type Inner = S;
+
+    fn inner(&self) -> &S {
+        &self.inner
+    }
+
+    fn inner_mut(&mut self) -> &mut Self::Inner {
+        &mut self.inner
+    }
+
+    fn into_inner(self) -> S {
+        self.inner
+    }
+}
