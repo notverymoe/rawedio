@@ -25,13 +25,13 @@ where
     S: Sound,
 {
     /// Wrap `inner` such that its speed can be adjusted.
-    pub fn new(inner: S) -> Self {
+    pub const fn new(inner: S) -> Self {
         Self::new_with_speed(inner, 1.0)
     }
 
     /// Wrap `inner` such that its speed can be adjusted and set an initial
     /// adjustment.
-    pub fn new_with_speed(inner: S, speed_adjustment: f32) -> Self {
+    pub const fn new_with_speed(inner: S, speed_adjustment: f32) -> Self {
         AdjustableSpeed {
             inner,
             speed_adjustment,
@@ -40,12 +40,12 @@ where
     }
 
     /// Get a reference to the wrapped inner Sound.
-    pub fn inner(&self) -> &S {
+    pub const fn inner(&self) -> &S {
         &self.inner
     }
 
     /// Get a mutable reference to the wrapped inner Sound.
-    pub fn inner_mut(&mut self) -> &mut S {
+    pub const fn inner_mut(&mut self) -> &mut S {
         &mut self.inner
     }
 
@@ -69,7 +69,7 @@ where
         u32::max(1, new_rate)
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         if self.speed_changed {
             self.speed_changed = false;
             return Ok(crate::NextSample::MetadataChanged);
@@ -78,7 +78,7 @@ where
     }
 
     fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch()
+        self.inner.on_start_of_batch();
     }
 }
 
@@ -97,7 +97,7 @@ where
     S: Sound,
 {
     /// Return the current speed multiplier. 1.0 is the default speed.
-    pub fn speed(&self) -> f32 {
+    pub const fn speed(&self) -> f32 {
         self.speed_adjustment
     }
 }
@@ -107,7 +107,7 @@ where
     S: Sound + SetPaused,
 {
     fn set_paused(&mut self, paused: bool) {
-        self.inner.set_paused(paused)
+        self.inner.set_paused(paused);
     }
 }
 
@@ -116,7 +116,7 @@ where
     S: Sound + SetStopped,
 {
     fn set_stopped(&mut self) {
-        self.inner.set_stopped()
+        self.inner.set_stopped();
     }
 }
 
@@ -125,10 +125,6 @@ where
     S: Sound + SetVolume,
 {
     fn set_volume(&mut self, multiplier: f32) {
-        self.inner.set_volume(multiplier)
+        self.inner.set_volume(multiplier);
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/adjustable_speed.rs"]
-mod tests;

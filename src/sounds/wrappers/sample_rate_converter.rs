@@ -30,7 +30,7 @@ pub struct SampleRateConverter<S: Sound> {
     next_output_frame_pos_in_chunk: u32,
     /// The buffer containing the samples waiting to be output. Never needs to
     /// contain the first channels sample. The highest channel is stored
-    /// first for efficient Vec::pop retrieval
+    /// first for efficient `Vec::pop` retrieval
     output_frame: Vec<i16>,
     /// The channel count of inner and ourself
     channel_count: u16,
@@ -47,7 +47,7 @@ impl<S> SampleRateConverter<S>
 where
     S: Sound,
 {
-    /// Create a new SampleRateConverter with an output sample rate of
+    /// Create a new `SampleRateConverter` with an output sample rate of
     /// `to_rate`.
     pub fn new(inner: S, to_rate: u32) -> SampleRateConverter<S> {
         let channel_count = inner.channel_count();
@@ -104,7 +104,7 @@ where
         self.output_frame = Vec::with_capacity(channel_count as usize - 1);
     }
 
-    fn fill_frames(&mut self) -> Result<bool, crate::Error> {
+    fn fill_frames(&mut self) -> Result<bool, crate::RawedioError> {
         let (first_samples, next_samples) = if self.from_rate_scaled == self.to_rate_scaled {
             (Vec::new(), Vec::new())
         } else {
@@ -141,7 +141,7 @@ where
         Ok(true)
     }
 
-    fn next_input_frame(&mut self) -> Result<bool, crate::Error> {
+    fn next_input_frame(&mut self) -> Result<bool, crate::RawedioError> {
         self.current_frame_pos_in_chunk += 1;
 
         std::mem::swap(&mut self.current_frame, &mut self.next_frame);
@@ -182,7 +182,7 @@ where
         self.to_rate
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         if self.channel_count_changed {
             self.channel_count_changed = false;
             return Ok(NextSample::MetadataChanged);
@@ -293,13 +293,7 @@ where
         } else {
             // If there are no more samples for next_frame we still want to send
             // current_frame to the output
-            if !self.current_frame.is_empty() {
-                self.current_frame.reverse();
-                let r = NextSample::Sample(self.current_frame.pop().unwrap());
-                std::mem::swap(&mut self.output_frame, &mut self.current_frame);
-                debug_assert!(self.current_frame.is_empty());
-                Ok(r)
-            } else {
+            if self.current_frame.is_empty() {
                 // Set things up so we will attempt to pull for more frames again
                 self.current_frame_pos_in_chunk = 0;
                 self.next_output_frame_pos_in_chunk = 0;
@@ -308,12 +302,18 @@ where
                 } else {
                     Ok(NextSample::Finished)
                 }
+            } else {
+                self.current_frame.reverse();
+                let r = NextSample::Sample(self.current_frame.pop().unwrap());
+                std::mem::swap(&mut self.output_frame, &mut self.current_frame);
+                debug_assert!(self.current_frame.is_empty());
+                Ok(r)
             }
         }
     }
 
     fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch()
+        self.inner.on_start_of_batch();
     }
 }
 
@@ -333,10 +333,6 @@ impl<S: Sound> Wrapper for SampleRateConverter<S> {
     }
 }
 
-fn linear_interpolation(first: i16, second: i16, numerator: u32, denominator: u32) -> i16 {
+const fn linear_interpolation(first: i16, second: i16, numerator: u32, denominator: u32) -> i16 {
     (first as i64 + (second as i64 - first as i64) * numerator as i64 / denominator as i64) as i16
 }
-
-#[cfg(test)]
-#[path = "./tests/sample_rate_converter.rs"]
-mod tests;

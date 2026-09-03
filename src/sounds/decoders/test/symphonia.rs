@@ -1,19 +1,21 @@
-use super::*;
-use crate::NextSample;
+use crate::{NextSample, Sound, sounds::decoders::SymphoniaDecoder};
 
 const SINE_WAVE_FILE: &[u8] = include_bytes!("audiocheck.net_sin_1000Hz_0dBFS_0.1s.mp3");
 
 #[test]
-fn samples_of_test_file() -> std::io::Result<()> {
-    let mut decoder =
-        SymphoniaDecoder::new(Box::new(std::io::Cursor::new(SINE_WAVE_FILE)), None).unwrap();
+fn samples_of_test_file() {
+    let mut decoder = SymphoniaDecoder::new(
+        Box::new(std::io::Cursor::new(SINE_WAVE_FILE)),
+        None
+    ).unwrap();
+
     assert_eq!(decoder.sample_rate(), 44100);
     assert_eq!(decoder.channel_count(), 1);
     for _i in 0..1 {
         let sample = decoder.next_sample().unwrap();
         match sample {
             NextSample::Sample(s) => {
-                assert!(s.abs() < 700)
+                assert!(s.abs() < 700);
             }
             NextSample::MetadataChanged => unreachable!(),
             NextSample::Paused => unreachable!(),
@@ -43,5 +45,4 @@ fn samples_of_test_file() -> std::io::Result<()> {
     }
     assert_eq!(decoder.next_sample().unwrap(), NextSample::Finished);
     assert_eq!(decoder.next_sample().unwrap(), NextSample::Finished);
-    Ok(())
 }

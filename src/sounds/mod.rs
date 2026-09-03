@@ -2,6 +2,9 @@
 pub mod decoders;
 pub mod wrappers;
 
+#[cfg(test)]
+mod test;
+
 mod empty;
 mod memory_sound;
 mod open_file;

@@ -6,11 +6,11 @@ type MixedSound = SampleRateConverter<ChannelCountConverter<Box<dyn Sound>>>;
 
 /// Mix multiple sounds together to be played simultaneously.
 ///
-/// The [Manager][crate::manager::Manager] contains a SoundMixer so you might
+/// The [Manager][crate::manager::Manager] contains a `SoundMixer` so you might
 /// not need to crate one yourself but instead add multiple sounds on the
 /// Manager.
 ///
-/// If a Sound returns an Error from next_sample, the error is logged and the
+/// If a Sound returns an Error from `next_sample`, the error is logged and the
 /// Sound is dropped but other sounds keep playing.
 pub struct SoundMixer {
     sounds: Vec<MixedSound>,
@@ -24,6 +24,7 @@ pub struct SoundMixer {
 impl SoundMixer {
     /// Create a new empty sound mixer with an output channel count and sample
     /// rate that all added sounds will be converted to.
+    #[must_use]
     pub fn new(output_channel_count: u16, output_sample_rate: u32) -> Self {
         SoundMixer {
             sounds: Vec::new(),
@@ -82,9 +83,10 @@ impl Sound for SoundMixer {
     }
 
     /// Guaranteed to not return an Error.
-    fn next_sample(&mut self) -> Result<crate::sound::NextSample, crate::Error> {
+    #[allow(clippy::panic_in_result_fn)]
+    fn next_sample(&mut self) -> Result<crate::sound::NextSample, crate::RawedioError> {
         if self.metadata_changed {
-            assert!(self.next_output_channel_idx == 0);
+            assert_eq!(self.next_output_channel_idx, 0); // TODO debug assert instead? error?
             self.metadata_changed = false;
             return Ok(NextSample::MetadataChanged);
         }
@@ -126,7 +128,7 @@ impl Sound for SoundMixer {
                     Err(e) => {
                         // TODO probably want to let applications subscribe to be notified of these
                         // errors
-                        log::error!("dropping sound in SoundMixer which returned error: {}", e);
+                        log::error!("dropping sound in SoundMixer which returned error: {e}");
                         to_remove.push((idx, false));
                         break;
                     }
@@ -181,7 +183,3 @@ impl ClearSounds for SoundMixer {
         self.paused_sounds.clear();
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/sound_mixer.rs"]
-mod tests;

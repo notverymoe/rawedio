@@ -10,6 +10,7 @@ use cpal::{
     Error as CpalError, ErrorKind, FromSample, SizedSample,
 };
 use std::error::Error;
+use std::assert_matches;
 
 pub use cpal::BufferSize as CpalBufferSize;
 
@@ -27,9 +28,10 @@ pub struct CpalBackend {
 }
 
 impl CpalBackend {
-    /// Create a new CpalBackend with defaults for all fields.
+    /// Create a new `CpalBackend` with defaults for all fields.
     ///
     /// Returns None if a default device or config could not be obtained.
+    #[must_use]
     pub fn with_defaults() -> Option<CpalBackend> {
         let host = cpal::default_host();
 
@@ -53,6 +55,7 @@ impl CpalBackend {
     /// Create a new backend.
     ///
     /// Returns None if an output device is not found
+    #[must_use]
     pub fn with_default_host_and_device(
         channel_count: u16,
         sample_rate: u32,
@@ -73,8 +76,9 @@ impl CpalBackend {
         })
     }
 
-    /// Create a new CpalBackend specifying all fields.
-    pub fn new(
+    /// Create a new `CpalBackend` specifying all fields.
+    #[must_use]
+    pub const fn new(
         channel_count: u16,
         sample_rate: u32,
         buffer_size: CpalBufferSize,
@@ -95,18 +99,21 @@ impl CpalBackend {
 impl CpalBackend {
     /// Start a cpal output stream and connect it to the returned Manager.
     ///
-    /// Only a single stream is supported at a time per CpalBackend object.
+    /// Only a single stream is supported at a time per `CpalBackend` object.
     ///
     /// Cpal stream errors will be reported by calling `error_callback`.
+    #[allow(clippy::panic_in_result_fn)]
     pub fn start<E>(&mut self, error_callback: E) -> Result<Manager, CpalBackendError>
     where
         E: FnMut(CpalError) + Send + 'static,
     {
         let (manager, mut renderer) = Manager::new();
         renderer.set_output_channel_count_and_sample_rate(self.channel_count, self.sample_rate);
-        let Ok(crate::NextSample::MetadataChanged) = renderer.next_sample() else {
-            panic!("expected MetadataChanged event")
-        };
+        assert_matches!(
+            renderer.next_sample(),
+            Ok(crate::NextSample::MetadataChanged),
+            "expected MetadataChanged event"
+        );
 
         let config = cpal::StreamConfig {
             channels: self.channel_count,
@@ -137,10 +144,7 @@ impl CpalBackend {
             sample_format => {
                 return Err(CpalBackendError::BuildStream(CpalError::with_message(
                     ErrorKind::UnsupportedConfig,
-                    format!(
-                        "unsupported output stream sample format: {:?}",
-                        sample_format
-                    ),
+                    format!("unsupported output stream sample format: {sample_format:?}"),
                 )))
             }
         };
@@ -151,7 +155,7 @@ impl CpalBackend {
     }
 }
 
-/// Converts Awedio's internal i16 samples to the format required by the audio
+/// Converts Rawedio's internal i16 samples to the format required by the audio
 /// device (type T).
 fn make_data_callback<T>(
     mut renderer: Renderer,

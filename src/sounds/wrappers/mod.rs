@@ -5,6 +5,9 @@
 //! This are normally accessed from functions on the [Sound][crate::Sound] trait
 //! instead of directly.
 
+#[cfg(test)]
+mod test;
+
 mod adjustable_speed;
 mod adjustable_volume;
 #[cfg(feature = "async")]

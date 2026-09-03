@@ -1,5 +1,4 @@
-use super::*;
-use crate::tests::{ConstantValueSound, DEFAULT_SAMPLE_RATE};
+use crate::{Sound, sounds::wrappers::SetSpeed, utils::tests::{ConstantValueSound, DEFAULT_SAMPLE_RATE}};
 
 #[test]
 fn adjust_down() {
@@ -8,7 +7,7 @@ fn adjust_down() {
         first.next_sample().unwrap(),
         crate::NextSample::Sample(1000)
     );
-    assert_eq!(first.sample_rate(), 22050)
+    assert_eq!(first.sample_rate(), 22050);
 }
 
 #[test]
@@ -18,7 +17,7 @@ fn adjust_up() {
         first.next_sample().unwrap(),
         crate::NextSample::Sample(1000)
     );
-    assert_eq!(first.sample_rate(), 44100 * 5)
+    assert_eq!(first.sample_rate(), 44100 * 5);
 }
 
 #[test]
@@ -28,7 +27,7 @@ fn test_real_fast() {
         first.next_sample().unwrap(),
         crate::NextSample::Sample(1000)
     );
-    assert_eq!(first.sample_rate(), 44100 * 1000)
+    assert_eq!(first.sample_rate(), 44100 * 1000);
 }
 
 #[test]
@@ -38,13 +37,13 @@ fn test_max_saturation() {
         first.next_sample().unwrap(),
         crate::NextSample::Sample(1000)
     );
-    assert_eq!(first.sample_rate(), u32::MAX)
+    assert_eq!(first.sample_rate(), u32::MAX);
 }
 
 #[test]
 fn test_min_saturation() {
     let mut first = ConstantValueSound::new(1000).with_adjustable_speed();
-    first.set_speed(0.0000000001);
+    first.set_speed(0.000_000_000_1);
     assert_eq!(first.sample_rate(), 1);
     assert_eq!(
         first.next_sample().unwrap(),

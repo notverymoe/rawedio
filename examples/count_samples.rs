@@ -1,4 +1,4 @@
-use awedio::{NextSample, Sound};
+use rawedio::{NextSample, Sound};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Some(file_path) = args() else {
@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(2);
     };
 
-    let mut sound = awedio::sounds::open_file(file_path)?;
+    let mut sound = rawedio::sounds::open_file(file_path)?;
 
     let mut num_samples = 0;
 
@@ -28,12 +28,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             Err(e) => {
-                println!("Encountered error: {:?}", e);
+                println!("Encountered error: {e:?}");
                 break;
             }
         }
     }
-    println!("Read {} samples.", num_samples);
+    println!("Read {num_samples} samples.");
 
     Ok(())
 }

@@ -16,7 +16,7 @@ use super::Wrapper;
 /// returns Finished it will be converted to Paused by Controllable. Only after
 /// the controller has dropped and all sounds have played will Finished be
 /// returned. If you want the Controllable to Finish immediately when the inner
-/// Sound has completed, use [finish_with_inner][Controllable].
+/// Sound has completed, use [`finish_with_inner`][Controllable].
 pub struct Controllable<S: Sound> {
     inner: S,
     command_receiver: mpsc::Receiver<Command<S>>,
@@ -42,7 +42,7 @@ where
 
     /// Instead of pausing while waiting for the Controller to drop,
     /// instead finish immediately when the inner sound has finished.
-    pub fn finish_with_inner(&mut self) {
+    pub const fn finish_with_inner(&mut self) {
         self.finished = true;
     }
 }
@@ -59,7 +59,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         let next = self.inner.next_sample()?;
         match next {
             crate::NextSample::Sample(_)

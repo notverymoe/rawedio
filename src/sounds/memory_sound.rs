@@ -4,7 +4,7 @@ use crate::{NextSample, Sound};
 
 /// A Sound that stores all samples on the heap.
 ///
-/// The heap samples can be shared between multiple MemorySounds that can be
+/// The heap samples can be shared between multiple `MemorySounds` that can be
 /// played simultaneously. Optionally the sound can repeat forever.
 #[derive(Clone)]
 pub struct MemorySound {
@@ -16,10 +16,10 @@ pub struct MemorySound {
     should_loop: bool,
 }
 
-/// A [MetadataChanged][NextSample::MetadataChanged] was returned while reading
-/// into a [MemorySound] which is not currently supported.
+/// A [`MetadataChanged`][NextSample::MetadataChanged] was returned while reading
+/// into a [`MemorySound`] which is not currently supported.
 #[derive(Debug)]
-pub struct UnsupportedMetadataChangeError {}
+pub struct UnsupportedMetadataChangeError;
 
 impl std::fmt::Display for UnsupportedMetadataChangeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -33,7 +33,7 @@ impl std::fmt::Display for UnsupportedMetadataChangeError {
 impl std::error::Error for UnsupportedMetadataChangeError {}
 
 impl MemorySound {
-    /// Create a MemorySound be consuming another Sound and storing the samples
+    /// Create a `MemorySound` be consuming another Sound and storing the samples
     /// until it returns `Finished` or `Paused`.
     ///
     /// If an Error is encountered it is returned and any already obtained
@@ -41,9 +41,9 @@ impl MemorySound {
     ///
     /// It is not currently supported for the the originating sample to change
     /// its metadata (i.e. channel count or sample rate). If it does an
-    /// IoError of ErrorKind::Other with a UnsupportedMetadataChangeError is
+    /// `IoError` of `ErrorKind::Other` with a `UnsupportedMetadataChangeError` is
     /// returned.
-    pub fn from_sound(mut orig: impl Sound) -> Result<Self, crate::Error> {
+    pub fn from_sound(mut orig: impl Sound) -> Result<Self, crate::RawedioError> {
         let channel_count = orig.channel_count();
         let sample_rate = orig.sample_rate();
 
@@ -57,7 +57,7 @@ impl MemorySound {
                 }
                 crate::NextSample::MetadataChanged => {
                     if orig.channel_count() != channel_count || orig.sample_rate() != sample_rate {
-                        return Err(crate::Error::IoError(std::io::Error::other(
+                        return Err(crate::RawedioError::IoError(std::io::Error::other(
                             UnsupportedMetadataChangeError {},
                         )));
                     }
@@ -88,8 +88,9 @@ impl MemorySound {
     /// Create memory sound from the raw data of samples.
     ///
     /// Samples should be in the same order as they will be returned from the
-    /// next_samples function (e.g. interleaved by channel).
-    pub fn from_samples(
+    /// `next_samples` function (e.g. interleaved by channel).
+    #[must_use]
+    pub const fn from_samples(
         samples: Arc<Vec<i16>>,
         channel_count: u16,
         sample_rate: u32,
@@ -105,7 +106,7 @@ impl MemorySound {
 
     /// Instead of finishing after playing all samples, start back at the
     /// beginning and continue forever.
-    pub fn set_looping(&mut self, should_loop: bool) {
+    pub const fn set_looping(&mut self, should_loop: bool) {
         self.should_loop = should_loop;
     }
 }
@@ -119,7 +120,7 @@ impl Sound for MemorySound {
         self.sample_rate
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         if let Some(sample) = self.samples.get(self.next_sample) {
             self.next_sample += 1;
             Ok(NextSample::Sample(*sample))
@@ -139,7 +140,3 @@ impl AsRef<[i16]> for MemorySound {
         &self.samples
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/memory_sound.rs"]
-mod tests;

@@ -1,23 +1,18 @@
 //! Decoders for various audio formats and file types.
 //!
 //! These are normally accessed via
-//! [sounds::open_file][crate::sounds::open_file()].
-#[cfg(feature = "rmp3-mp3")]
-mod mp3;
+//! [`sounds::open_file`][crate::sounds::open_file()].
 #[cfg(feature = "qoa")]
 mod qoa;
 #[cfg(feature = "symphonia")]
 mod symphonia;
-#[cfg(feature = "hound-wav")]
-mod wav;
 
-#[cfg(feature = "rmp3-mp3")]
-pub use mp3::Mp3Decoder;
 #[cfg(feature = "qoa")]
 pub use qoa::QoaDecoder;
 #[cfg(feature = "qoa")]
 pub use qoaudio::DecodeError as QoaDecodeError;
 #[cfg(feature = "symphonia")]
 pub use symphonia::SymphoniaDecoder;
-#[cfg(feature = "hound-wav")]
-pub use wav::WavDecoder;
+
+#[cfg(test)]
+mod test;

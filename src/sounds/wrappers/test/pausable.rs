@@ -1,5 +1,4 @@
-use super::*;
-use crate::tests::ConstantValueSound;
+use crate::{Sound, sounds::wrappers::SetPaused, utils::tests::ConstantValueSound};
 
 #[test]
 fn set_paused_and_unpause() {

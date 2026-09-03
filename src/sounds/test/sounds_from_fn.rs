@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::{sounds::MemorySound, NextSample, Sound};
-
-use super::*;
+use crate::{NextSample, Sound, sounds::{MemorySound, SoundsFromFn}};
 
 #[test]
 fn basic() {

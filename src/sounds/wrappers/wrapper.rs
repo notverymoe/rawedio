@@ -27,7 +27,7 @@ where
     <S as Wrapper>::Inner: SetPaused,
 {
     fn set_paused(&mut self, paused: bool) {
-        self.inner_mut().set_paused(paused)
+        self.inner_mut().set_paused(paused);
     }
 }
 
@@ -37,7 +37,7 @@ where
     <S as Wrapper>::Inner: SetStopped,
 {
     fn set_stopped(&mut self) {
-        self.inner_mut().set_stopped()
+        self.inner_mut().set_stopped();
     }
 }
 
@@ -47,7 +47,7 @@ where
     <S as Wrapper>::Inner: SetSpeed,
 {
     fn set_speed(&mut self, new: f32) {
-        self.inner_mut().set_speed(new)
+        self.inner_mut().set_speed(new);
     }
 }
 
@@ -57,7 +57,7 @@ where
     <S as Wrapper>::Inner: SetVolume,
 {
     fn set_volume(&mut self, new: f32) {
-        self.inner_mut().set_volume(new)
+        self.inner_mut().set_volume(new);
     }
 }
 
@@ -67,7 +67,7 @@ where
     <S as Wrapper>::Inner: AddSound,
 {
     fn add(&mut self, sound: Box<dyn crate::Sound>) {
-        self.inner_mut().add(sound)
+        self.inner_mut().add(sound);
     }
 }
 
@@ -77,6 +77,6 @@ where
     <S as Wrapper>::Inner: ClearSounds,
 {
     fn clear(&mut self) {
-        self.inner_mut().clear()
+        self.inner_mut().clear();
     }
 }

@@ -1,5 +1,6 @@
-use super::*;
-use crate::{sounds::wrappers::SetPaused, tests::ConstantValueSound};
+use std::time::Duration;
+
+use crate::{Sound, sounds::wrappers::SetPaused, utils::tests::ConstantValueSound};
 
 #[test]
 fn test_simple() {

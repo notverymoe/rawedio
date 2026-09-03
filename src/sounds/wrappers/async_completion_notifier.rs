@@ -1,4 +1,4 @@
-//! [AsyncCompletionNotifier] and re-export of the tokio [`oneshot`] channel it
+//! [`AsyncCompletionNotifier`] and re-export of the tokio [`oneshot`] channel it
 //! uses for convenience.
 
 use super::Wrapper;
@@ -6,7 +6,7 @@ use crate::NextSample;
 use crate::Sound;
 pub use tokio::sync::oneshot;
 
-/// Notify via a [tokio::sync::oneshot::Receiver] when the contained Sound has
+/// Notify via a [`tokio::sync::oneshot::Receiver`] when the contained Sound has
 /// Finished.
 ///
 /// If the Sound is dropped before it returned Finished then the receiver
@@ -45,7 +45,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         let next = self.inner.next_sample()?;
         if let NextSample::Finished = next {
             if let Some(sender) = self.sender.take() {

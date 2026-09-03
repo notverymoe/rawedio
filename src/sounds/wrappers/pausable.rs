@@ -19,8 +19,8 @@ where
     S: Sound,
 {
     /// Wrap `inner` and allow it to be paused via
-    /// [set_paused][SetPaused::set_paused].
-    pub fn new(inner: S) -> Self {
+    /// [`set_paused`][SetPaused::set_paused].
+    pub const fn new(inner: S) -> Self {
         Pausable {
             inner,
             paused: false,
@@ -28,12 +28,12 @@ where
     }
 
     /// Get a reference to the wrapped inner Sound.
-    pub fn inner(&self) -> &S {
+    pub const fn inner(&self) -> &S {
         &self.inner
     }
 
     /// Get a mutable reference to the wrapped inner Sound.
-    pub fn inner_mut(&mut self) -> &mut S {
+    pub const fn inner_mut(&mut self) -> &mut S {
         &mut self.inner
     }
 
@@ -55,7 +55,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         if self.paused {
             return Ok(crate::NextSample::Paused);
         }
@@ -63,7 +63,7 @@ where
     }
 
     fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch()
+        self.inner.on_start_of_batch();
     }
 }
 
@@ -72,7 +72,7 @@ where
     S: Sound,
 {
     /// Return if the Sound is currently being paused.
-    pub fn paused(&self) -> bool {
+    pub const fn paused(&self) -> bool {
         self.paused
     }
 }
@@ -91,7 +91,7 @@ where
     S: Sound + SetStopped,
 {
     fn set_stopped(&mut self) {
-        self.inner.set_stopped()
+        self.inner.set_stopped();
     }
 }
 
@@ -100,7 +100,7 @@ where
     S: Sound + SetVolume,
 {
     fn set_volume(&mut self, multiplier: f32) {
-        self.inner.set_volume(multiplier)
+        self.inner.set_volume(multiplier);
     }
 }
 
@@ -109,10 +109,6 @@ where
     S: Sound + SetSpeed,
 {
     fn set_speed(&mut self, multiplier: f32) {
-        self.inner.set_speed(multiplier)
+        self.inner.set_speed(multiplier);
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/pausable.rs"]
-mod tests;

@@ -1,6 +1,4 @@
-use crate::{NextSample, Sound};
-
-use super::*;
+use crate::{NextSample, Sound, sounds::SineWave};
 
 #[test]
 fn high_freq_wav() {

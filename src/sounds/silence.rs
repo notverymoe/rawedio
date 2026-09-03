@@ -8,7 +8,8 @@ impl Silence {
     /// Create a new sound that will return 0 samples forever and
     /// return the specified channel count and sample rate from
     /// their respective methods.
-    pub fn new(channel_count: u16, sample_rate: u32) -> Silence {
+    #[must_use]
+    pub const fn new(channel_count: u16, sample_rate: u32) -> Silence {
         Silence {
             channel_count,
             sample_rate,
@@ -25,7 +26,7 @@ impl crate::Sound for Silence {
         self.sample_rate
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         Ok(crate::NextSample::Sample(0))
     }
 

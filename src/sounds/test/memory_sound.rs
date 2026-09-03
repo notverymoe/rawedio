@@ -1,6 +1,6 @@
-use crate::{sounds::SoundList, NextSample, Sound};
+use std::sync::Arc;
 
-use super::*;
+use crate::{NextSample, Sound, sounds::{MemorySound, SoundList}};
 
 #[test]
 fn metadata_change_two_off_does_not_cause_desync() {

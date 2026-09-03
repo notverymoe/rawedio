@@ -14,6 +14,9 @@ use crate::{
     utils,
 };
 
+#[cfg(test)]
+mod test;
+
 /// A provider of audio samples.
 ///
 /// This is the foundational trait of this crate. A `Box<dyn Sound>` can be
@@ -30,22 +33,22 @@ pub trait Sound: Send {
 
     /// Retrieve the next sample or notification if something has changed.
     /// The first sample is for the first channel and the second is the for
-    /// second and so on until channel_count and then wraps back to the first
-    /// channel. If any NextSample variant besides `Sample` is returned then
+    /// second and so on until `channel_count` and then wraps back to the first
+    /// channel. If any `NextSample` variant besides `Sample` is returned then
     /// the following `NextSample::Sample` is for the first channel. If a Sound
     /// has returned `Paused` it is expected that the consumer will call
-    /// next_sample again in the future. If a Sound has returned `Finished` it
-    /// is not expected for the consumer to call next_sample again but if called
+    /// `next_sample` again in the future. If a Sound has returned `Finished` it
+    /// is not expected for the consumer to call `next_sample` again but if called
     /// `Finished` will normally be returned again. After Finished has been
-    /// returned, channel_count() and sample_rate() may return different values
-    /// without MetadataChanged being returned.
+    /// returned, `channel_count()` and `sample_rate()` may return different values
+    /// without `MetadataChanged` being returned.
     ///
     /// If an error is returned it is not specified what will happen if
-    /// next_sample is called again. Individual implementations can specify
+    /// `next_sample` is called again. Individual implementations can specify
     /// which errors are recoverable if any. Most consumers will either pass the
     /// error up or log the error and stop playing the sound (e.g. `SoundMixer`
     /// and `SoundList`).
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error>;
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError>;
 
     /// Called whenever a new batch of audio samples is requested by the
     /// backend.
@@ -58,14 +61,14 @@ pub trait Sound: Send {
     ///
     /// It is the callers responsibility to ensure this function is only called
     /// at the start of a frame (i.e. the first channel is the next to be
-    /// returned from next_sample).
+    /// returned from `next_sample`).
     ///
     /// If an Error, `Paused`, `Finished`, or `MetadataChanged` are encountered
-    /// while collecting samples, an Err(Ok(NextSample)) of that variant
+    /// while collecting samples, an `Err(Ok(NextSample))` of that variant
     /// will be returned and any previously collected samples are lost.
-    /// Err(Ok(NextSample::Sample)) will never be returned. If an error is
-    /// encountered Err(Err(error::Error)) is returned.
-    fn next_frame(&mut self) -> Result<Vec<i16>, Result<NextSample, crate::Error>> {
+    /// `Err(Ok(NextSample::Sample))` will never be returned. If an error is
+    /// encountered `Err(Err(error::Error))` is returned.
+    fn next_frame(&mut self) -> Result<Vec<i16>, Result<NextSample, crate::RawedioError>> {
         let mut samples = Vec::with_capacity(self.channel_count() as usize);
         self.append_next_frame_to(&mut samples)?;
         Ok(samples)
@@ -77,23 +80,26 @@ pub trait Sound: Send {
     fn append_next_frame_to(
         &mut self,
         samples: &mut Vec<i16>,
-    ) -> Result<(), Result<NextSample, crate::Error>> {
+    ) -> Result<(), Result<NextSample, crate::RawedioError>> {
         for _ in 0..self.channel_count() {
             let next = self.next_sample();
             match next {
                 Ok(NextSample::Sample(s)) => samples.push(s),
-                Ok(NextSample::MetadataChanged)
-                | Ok(NextSample::Paused)
-                | Ok(NextSample::Finished)
-                | Err(_) => return Err(next),
+                Ok(
+                    NextSample::MetadataChanged | 
+                    NextSample::Paused | 
+                    NextSample::Finished
+                ) | Err(_) => {
+                    return Err(next)
+                },
             }
         }
         Ok(())
     }
 
-    /// Read the entire sound into memory. MemorySound can be cloned for
-    /// efficient reuse. See [MemorySound::from_sound].
-    fn into_memory_sound(self) -> Result<MemorySound, crate::Error>
+    /// Read the entire sound into memory. `MemorySound` can be cloned for
+    /// efficient reuse. See [`MemorySound::from_sound`].
+    fn into_memory_sound(self) -> Result<MemorySound, crate::RawedioError>
     where
         Self: Sized,
     {
@@ -103,8 +109,8 @@ pub trait Sound: Send {
     /// Read the entire sound into memory and loop indefinitely.
     ///
     /// If you do not want to read the entire sound into memory see
-    /// [SoundsFromFn][crate::sounds::SoundsFromFn] as an alternative.
-    fn loop_from_memory(self) -> Result<MemorySound, crate::Error>
+    /// [`SoundsFromFn`][crate::sounds::SoundsFromFn] as an alternative.
+    fn loop_from_memory(self) -> Result<MemorySound, crate::RawedioError>
     where
         Self: Sized,
     {
@@ -116,7 +122,7 @@ pub trait Sound: Send {
     /// Allow this sound to be controlled after it has started playing with a
     /// [`Controller`].
     ///
-    /// What can be controlled depends on the Sound type (e.g. set_volume).
+    /// What can be controlled depends on the Sound type (e.g. `set_volume`).
     fn controllable(self) -> (Controllable<Self>, Controller<Self>)
     where
         Self: Sized,
@@ -124,7 +130,7 @@ pub trait Sound: Send {
         Controllable::new(self)
     }
 
-    /// Get notified via a [tokio::sync::oneshot::Receiver] when this sound
+    /// Get notified via a [`tokio::sync::oneshot::Receiver`] when this sound
     /// has Finished.
     #[cfg(feature = "async")]
     fn with_async_completion_notifier(
@@ -139,7 +145,7 @@ pub trait Sound: Send {
         crate::sounds::wrappers::AsyncCompletionNotifier::new(self)
     }
 
-    /// Get notified via a [std::sync::mpsc::Receiver] when this sound
+    /// Get notified via a [`std::sync::mpsc::Receiver`] when this sound
     /// has Finished.
     fn with_completion_notifier(
         self,
@@ -221,7 +227,7 @@ pub trait Sound: Send {
     /// Play the first `duration` of the sound, then finish even if samples
     /// remain.
     ///
-    /// See [FinishAfter].
+    /// See [`FinishAfter`].
     fn finish_after(self, duration: Duration) -> FinishAfter<Self>
     where
         Self: Sized,
@@ -231,12 +237,12 @@ pub trait Sound: Send {
 
     /// Skip the next `duration` of samples.
     ///
-    /// This is done by calling next_sample repeatedly.
+    /// This is done by calling `next_sample` repeatedly.
     ///
     /// Returns true if all samples were successfully skipped, false if a Paused
-    /// or Finished were encountered first. MetadataChanged events are handled
+    /// or Finished were encountered first. `MetadataChanged` events are handled
     /// correctly but are not returned.
-    fn skip(&mut self, duration: Duration) -> Result<bool, crate::Error> {
+    fn skip(&mut self, duration: Duration) -> Result<bool, crate::RawedioError> {
         let mut current_channel_count = self.channel_count();
         let mut current_sample_rate = self.sample_rate();
         let mut num_samples_remaining =
@@ -273,7 +279,7 @@ pub trait Sound: Send {
     }
 }
 
-/// The result of [Sound::next_sample]
+/// The result of [`Sound::next_sample`]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NextSample {
     /// A sample for one channel. Channels are interleaved. The first sample is
@@ -296,7 +302,7 @@ pub enum NextSample {
 
 impl Sound for Box<dyn Sound> {
     fn on_start_of_batch(&mut self) {
-        self.deref_mut().on_start_of_batch()
+        self.deref_mut().on_start_of_batch();
     }
 
     fn channel_count(&self) -> u16 {
@@ -307,11 +313,7 @@ impl Sound for Box<dyn Sound> {
         self.deref().sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         self.deref_mut().next_sample()
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/sound.rs"]
-mod tests;

@@ -6,14 +6,14 @@ use crate::Sound;
 
 use super::backend_source::BackendSource;
 
-/// The default [BackendSource]. Renderer is essentially half of
+/// The default [`BackendSource`]. Renderer is essentially half of
 /// [Manager][crate::manager::Manager].
 pub struct Renderer {
     mixer: Controllable<SoundMixer>,
 }
 
 impl Renderer {
-    pub(crate) fn new(mixer: Controllable<SoundMixer>) -> Self {
+    pub(crate) const fn new(mixer: Controllable<SoundMixer>) -> Self {
         Renderer { mixer }
     }
 }
@@ -47,7 +47,7 @@ impl Sound for Renderer {
     /// the Renderer has been dropped.
     ///
     /// Guaranteed to not return an Error.
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         self.mixer.next_sample()
     }
 
@@ -55,8 +55,8 @@ impl Sound for Renderer {
     /// requested. This must only be called when the next sample to be delivered
     /// from `next_sample` is for the first channel.
     ///
-    /// See [Sound::on_start_of_batch]
+    /// See [`Sound::on_start_of_batch`]
     fn on_start_of_batch(&mut self) {
-        self.mixer.on_start_of_batch()
+        self.mixer.on_start_of_batch();
     }
 }

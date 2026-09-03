@@ -1,28 +1,50 @@
 [package]
-name = "awedio"
+name = "rawedio"
 version = "0.8.0"
 edition = "2021"
-authors = ["Ben Hansen <bh@benhansen.io>"]
-description = "A low-overhead and adaptable audio playback library"
+authors = ["(Fork) Natalie Baker", "(Original) Ben Hansen <bh@benhansen.io>"]
+description = "A low-overhead and adaptable audio playback library, forked."
 license = "MIT OR Apache-2.0"
 keywords = ["audio", "playback"]
 categories = ["multimedia::audio", "embedded"]
-repository = "https://github.com/boppofun/awedio"
+repository = "https://github.com/notverymoe/rawedio"
 
 [features]
-default = ["cpal", "async", "symphonia-all", "qoa"]
+default = [
+    "cpal",
+    "async",
+    "symphonia-basic",
+    "qoa"
+]
 async = ["dep:tokio"]
+
+# # Backends # #
 cpal = ["dep:cpal"]
 
-rmp3-mp3 = ["dep:rmp3"]
+# # QOA # #
 qoa = ["dep:qoaudio"]
-hound-wav = ["dep:hound"]
 
-symphonia-all = ["symphonia", "symphonia/all"]
+# # Symphonia # #
+symphonia-basic = [
+    "symphonia", 
+    "symphonia/opt-simd", 
+    "symphonia/ogg", 
+    "symphonia/flac",
+    "symphonia/vorbis",
+]
+
+symphonia-all      = ["symphonia", "symphonia/all"]
+symphonia-opt-simd = ["symphonia", "symphonia/opt-simd"]
+
+# Demuxers
+symphonia-aiff = ["symphonia", "symphonia/aiff"]
+symphonia-caf = ["symphonia", "symphonia/caf"]
 symphonia-isomp4 = ["symphonia", "symphonia/isomp4"]
 symphonia-mkv = ["symphonia", "symphonia/mkv"]
 symphonia-ogg = ["symphonia", "symphonia/ogg"]
 symphonia-wav = ["symphonia", "symphonia/wav"]
+
+# Codecs
 symphonia-aac = ["symphonia", "symphonia/aac"]
 symphonia-adpcm = ["symphonia", "symphonia/adpcm"]
 symphonia-alac = ["symphonia", "symphonia/alac"]
@@ -37,13 +59,76 @@ symphonia-vorbis = ["symphonia", "symphonia/vorbis"]
 [dependencies]
 tokio = { version = "1.26.0", features = ["sync"], optional = true }
 hound = { version = "3.5.0", optional = true }
-rmp3 = { version = "0.3.1", features = ["std"], optional = true }
 cpal = { version = "0.18", optional = true }
 qoaudio = { version = "0.7", optional = true }
 symphonia = { version = "0.6", optional = true, default-features = false }
 log = "0.4.20"
 
+[dev-dependencies]
+qoaudio = { version = "0.7" }
+symphonia = { version = "0.6", features = ["all", "opt-simd"] }
 
 [[example]]
 name = "play"
 required-features = ["cpal"]
+
+[lints.clippy]
+all                            = { level = "warn", priority = -1 }
+pedantic                       = { level = "warn", priority = -1 }
+alloc_instead_of_core          = "warn"
+as_underscore                  = "warn"
+clone_on_ref_ptr               = "warn"
+create_dir                     = "warn"
+empty_structs_with_brackets    = "warn"
+error_impl_error               = "warn"
+exit                           = "warn"
+filetype_is_file               = "warn"
+fn_to_numeric_cast_any         = "warn"
+format_push_string             = "warn"
+missing_const_for_fn           = "warn"
+mixed_read_write_in_expression = "warn"
+panic_in_result_fn             = "warn"
+partial_pub_fields             = "warn"
+str_to_string                  = "warn"
+implicit_clone                 = "warn"
+tests_outside_test_module      = "warn"
+undocumented_unsafe_blocks     = "warn"
+unnecessary_safety_comment     = "warn"
+unnecessary_safety_doc         = "warn"
+unseparated_literal_suffix     = "warn"
+
+cast_lossless                  = "allow"
+cast_possible_truncation       = "allow"
+cast_possible_wrap             = "allow"
+cast_precision_loss            = "allow"
+cast_sign_loss                 = "allow"
+missing_docs_in_private_items  = "allow"
+missing_errors_doc             = "allow"
+module_name_repetitions        = "allow"
+needless_pass_by_value         = "allow"
+shadow_unrelated               = "allow"     
+similar_names                  = "allow"  
+missing_panics_doc             = "allow" 
+unwrap_in_result               = "allow"
+many_single_char_names         = "allow"
+match_same_arms                = "allow"
+collapsible_else_if            = "allow"
+too_many_arguments             = "allow"
+too_many_lines                 = "allow"
+wildcard_imports               = "allow"
+type_complexity                = "allow"
+collapsible_if                 = "allow"
+std_instead_of_core            = "allow"
+collapsible_match              = "allow"
+if_then_some_else_none         = "allow"
+
+[profile.release]
+opt-level = 3
+# lto = "fat"
+# codegen-units = 1
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

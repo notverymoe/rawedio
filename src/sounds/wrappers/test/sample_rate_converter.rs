@@ -1,10 +1,6 @@
 use crate::{
-    sounds::wrappers::{SetPaused, SetSpeed},
-    tests::Sawtooth,
-    NextSample, Sound,
+    NextSample, Sound, sounds::wrappers::{SampleRateConverter, SetPaused, SetSpeed, Wrapper}, utils::tests::Sawtooth
 };
-
-use super::*;
 
 #[test]
 fn test_no_conversion() {

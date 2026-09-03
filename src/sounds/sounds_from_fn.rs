@@ -6,9 +6,9 @@ type SoundGenerator = Box<dyn FnMut() -> Option<Box<dyn Sound>> + Send>;
 ///
 /// The generator function is called after each previously produced sound has
 /// returned finished. After `SoundsFromFn` returns None
-/// this sound returns Finished. If an Error is returned from next_sound
-/// that sound is dropped and the Error is returned. If next_sound is called
-/// again SoundsFromFn is called again.
+/// this sound returns Finished. If an Error is returned from `next_sound`
+/// that sound is dropped and the Error is returned. If `next_sound` is called
+/// again `SoundsFromFn` is called again.
 ///
 /// This can be used to create sounds that loop forever without storing all
 /// samples in memory.
@@ -29,12 +29,13 @@ impl SoundsFromFn {
     ///
     /// ```rust
     /// # fn no_run() {
-    /// use awedio::sounds::{SoundsFromFn, open_file};
+    /// use rawedio::sounds::{SoundsFromFn, open_file};
     ///
     /// let generator = || Some(open_file("test.wav").unwrap());
     /// let forever_sound = SoundsFromFn::new(Box::new(generator));
     /// # }
     /// ```
+    #[must_use]
     pub fn new(mut generator: SoundGenerator) -> Self {
         let current = generator();
         let mut to_return = Self {
@@ -57,15 +58,13 @@ impl Sound for SoundsFromFn {
     fn channel_count(&self) -> u16 {
         self.current
             .as_ref()
-            .map(|s| s.channel_count())
-            .unwrap_or(1)
+            .map_or(1, Sound::channel_count)
     }
 
     fn sample_rate(&self) -> u32 {
         self.current
             .as_ref()
-            .map(|s| s.sample_rate())
-            .unwrap_or(1000)
+            .map_or(1000, Sound::sample_rate)
     }
 
     fn on_start_of_batch(&mut self) {
@@ -74,7 +73,7 @@ impl Sound for SoundsFromFn {
         }
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         loop {
             let Some(current) = &mut self.current else {
                 return Ok(NextSample::Finished);
@@ -114,7 +113,3 @@ impl Sound for SoundsFromFn {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/sounds_from_fn.rs"]
-mod tests;

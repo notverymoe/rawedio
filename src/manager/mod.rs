@@ -26,6 +26,7 @@ impl Manager {
     ///
     /// Normally you do not need to call this function directly but you instead
     /// call `.start(...)` on a backend which will call this function.
+    #[must_use]
     pub fn new() -> (Self, Renderer) {
         let (mixer, mixer_controller) =
             Controllable::new(SoundMixer::new(DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE));
@@ -37,7 +38,7 @@ impl Manager {
     /// Add a new Sound to be played in parallel to any existing sounds.
     ///
     /// If you want to play Sounds sequentially use a
-    /// [SoundList][crate::sounds::SoundList].
+    /// [`SoundList`][crate::sounds::SoundList].
     ///
     /// See the modifier functions on [Sound] to control sounds before and/or
     /// after playing.

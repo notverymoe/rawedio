@@ -35,12 +35,12 @@ where
     }
 
     /// Get a reference to the wrapped inner Sound.
-    pub fn inner(&self) -> &S {
+    pub const fn inner(&self) -> &S {
         &self.inner
     }
 
     /// Get a mutable reference to the wrapped inner Sound.
-    pub fn inner_mut(&mut self) -> &mut S {
+    pub const fn inner_mut(&mut self) -> &mut S {
         &mut self.inner
     }
 
@@ -62,7 +62,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         if self.samples_remaining == 0 {
             return Ok(crate::NextSample::Finished);
         }
@@ -82,7 +82,7 @@ where
                     / self.current_channel_count as f64
                     / self.current_sample_rate as f64;
                 let duration_played = Duration::from_secs_f64(seconds_played);
-                let duration_remaining = self.total_duration - duration_played;
+                let duration_remaining = self.total_duration.checked_sub(duration_played).unwrap();
                 self.current_channel_count = self.inner.channel_count();
                 self.current_sample_rate = self.inner.sample_rate();
                 self.samples_remaining = num_samples(
@@ -98,11 +98,11 @@ where
     }
 
     fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch()
+        self.inner.on_start_of_batch();
     }
 }
 
-pub fn num_samples(duration: Duration, num_channels: u16, num_samples: u32) -> u64 {
+pub const fn num_samples(duration: Duration, num_channels: u16, num_samples: u32) -> u64 {
     const MICROS_PER_SEC: u64 = 1_000_000;
     let micros = duration.as_secs() * MICROS_PER_SEC + duration.subsec_micros() as u64;
     micros * num_channels as u64 * num_samples as u64 / MICROS_PER_SEC
@@ -123,7 +123,3 @@ impl<S: Sound> Wrapper for FinishAfter<S> {
         self.inner
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/finish_after.rs"]
-mod tests;

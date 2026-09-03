@@ -3,15 +3,15 @@ use crate::NextSample;
 use crate::Sound;
 use std::sync::mpsc;
 
-/// Notify via a [std::sync::mpsc::Receiver] when the contained Sound has
+/// Notify via a [`std::sync::mpsc::Receiver`] when the contained Sound has
 /// Finished. A single message is sent when the sound has completed.
 ///
 /// If the Sound is dropped before it returned Finished then the receiver
 /// will return an error. The contained Sound pausing or yielding an error
 /// does not count as completion.
 ///
-/// See also [crate::Sound::with_async_completion_notifier]
-/// See also [super::AsyncCompletionNotifier]
+/// See also [`crate::Sound::with_async_completion_notifier`]
+/// See also [`super::AsyncCompletionNotifier`]
 pub struct CompletionNotifier<S: Sound> {
     inner: S,
     sender: Option<mpsc::SyncSender<()>>,
@@ -45,7 +45,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         let next = self.inner.next_sample()?;
         if let NextSample::Finished = next {
             if let Some(sender) = self.sender.take() {

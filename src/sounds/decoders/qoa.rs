@@ -55,7 +55,7 @@ where
         self.sample_rate
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         loop {
             let Some(next_sample) = self.raw_decoder.next() else {
                 return Ok(NextSample::Finished);
@@ -73,7 +73,7 @@ where
                         return Ok(NextSample::MetadataChanged);
                     }
                     // No metadata change. Continue and read next sample
-                    continue;
+                    // continue;
                 }
             }
         }
@@ -82,18 +82,14 @@ where
     fn on_start_of_batch(&mut self) {}
 }
 
-impl From<DecodeError> for crate::Error {
+impl From<DecodeError> for crate::RawedioError {
     fn from(value: DecodeError) -> Self {
         match value {
             DecodeError::IoError(e) => e.into(),
             DecodeError::NotQoaFile
             | DecodeError::NoSamples
             | DecodeError::InvalidFrameHeader
-            | DecodeError::IncompatibleFrame => crate::Error::FormatError(Box::new(value)),
+            | DecodeError::IncompatibleFrame => crate::RawedioError::FormatError(Box::new(value)),
         }
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/qoa.rs"]
-mod tests;

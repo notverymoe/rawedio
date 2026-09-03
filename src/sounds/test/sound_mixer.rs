@@ -1,7 +1,16 @@
-use super::*;
 use crate::{
-    sounds::SoundList,
-    tests::{ConstantValueSound, DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE},
+    NextSample, 
+    Sound,
+    sounds::{
+        SoundList,
+        SoundMixer,
+        wrappers::AddSound
+    }, 
+    utils::tests::{
+        ConstantValueSound,
+        DEFAULT_CHANNEL_COUNT,
+        DEFAULT_SAMPLE_RATE
+    }
 };
 
 #[test]
@@ -35,7 +44,7 @@ fn two_sounds_add_together() {
 
 #[test]
 fn empty_sound_list_not_same_sample_rate() {
-    // Reporducing issue when SoundMixer matches audio but goes through SoundList
+    // Reproducing issue when SoundMixer matches audio but goes through SoundList
     // with different sample rate
     let mut mixer = SoundMixer::new(2, 40000);
     let (sound, mut controller) = SoundList::new().controllable();

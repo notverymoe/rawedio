@@ -1,11 +1,13 @@
-use super::*;
-use crate::NextSample;
+use crate::{NextSample, Sound, sounds::decoders::QoaDecoder};
 
 const SINE_WAVE_FILE: &[u8] = include_bytes!("audiocheck.net_sin_1000Hz_0dBFS_0.1s.qoa");
 
 #[test]
-fn samples_of_test_file() -> std::io::Result<()> {
-    let mut decoder = QoaDecoder::new(std::io::Cursor::new(SINE_WAVE_FILE)).unwrap();
+fn samples_of_test_file() {
+    let mut decoder = QoaDecoder::new(
+        std::io::Cursor::new(SINE_WAVE_FILE)
+    ).unwrap();
+
     assert_eq!(decoder.sample_rate(), 44100);
     assert_eq!(decoder.channel_count(), 1);
     assert_eq!(decoder.next_sample().unwrap(), NextSample::Sample(422)); // 1
@@ -32,5 +34,4 @@ fn samples_of_test_file() -> std::io::Result<()> {
     }
     assert_eq!(decoder.next_sample().unwrap(), NextSample::Finished);
     assert_eq!(decoder.next_sample().unwrap(), NextSample::Finished);
-    Ok(())
 }

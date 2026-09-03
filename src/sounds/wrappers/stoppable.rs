@@ -20,8 +20,9 @@ where
     S: Sound,
 {
     /// Wrap `inner` and allow it to be stopped via
-    /// [set_stopped][SetStopped::set_stopped].
-    pub fn new(inner: S) -> Self {
+    /// [`set_stopped`][SetStopped::set_stopped].
+    #[must_use]
+    pub const fn new(inner: S) -> Self {
         Stoppable {
             inner,
             stopped: false,
@@ -29,12 +30,12 @@ where
     }
 
     /// Get a reference to the wrapped inner Sound.
-    pub fn inner(&self) -> &S {
+    pub const fn inner(&self) -> &S {
         &self.inner
     }
 
     /// Get a mutable reference to the wrapped inner Sound.
-    pub fn inner_mut(&mut self) -> &mut S {
+    pub const fn inner_mut(&mut self) -> &mut S {
         &mut self.inner
     }
 
@@ -56,7 +57,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         if self.stopped {
             return Ok(crate::NextSample::Finished);
         }
@@ -64,7 +65,7 @@ where
     }
 
     fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch()
+        self.inner.on_start_of_batch();
     }
 }
 
@@ -73,7 +74,7 @@ where
     S: Sound,
 {
     /// Return if the Sound is stopped.
-    pub fn stopped(&self) -> bool {
+    pub const fn stopped(&self) -> bool {
         self.stopped
     }
 }
@@ -92,7 +93,7 @@ where
     S: Sound + SetPaused,
 {
     fn set_paused(&mut self, paused: bool) {
-        self.inner.set_paused(paused)
+        self.inner.set_paused(paused);
     }
 }
 
@@ -101,7 +102,7 @@ where
     S: Sound + SetVolume,
 {
     fn set_volume(&mut self, multiplier: f32) {
-        self.inner.set_volume(multiplier)
+        self.inner.set_volume(multiplier);
     }
 }
 
@@ -110,10 +111,6 @@ where
     S: Sound + SetSpeed,
 {
     fn set_speed(&mut self, multiplier: f32) {
-        self.inner.set_speed(multiplier)
+        self.inner.set_speed(multiplier);
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/stoppable.rs"]
-mod tests;

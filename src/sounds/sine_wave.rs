@@ -14,6 +14,7 @@ pub struct SineWave {
 
 impl SineWave {
     /// A constant pitch sound with a default sample rate of 48,000.
+    #[must_use]
     pub fn new(freq: f32) -> SineWave {
         Self::with_sample_rate(freq, 48000)
     }
@@ -21,6 +22,7 @@ impl SineWave {
     /// A constant pitch sound with `sample_rate`.
     ///
     /// freq must be greater than 0 Hz.
+    #[must_use]
     pub fn with_sample_rate(freq: f32, sample_rate: u32) -> SineWave {
         assert!(freq > 0.0);
         let reset_num = find_reset_num(freq, sample_rate);
@@ -34,6 +36,7 @@ impl SineWave {
     }
 
     /// Precompute samples into a looping memory sound
+    #[must_use]
     pub fn as_memory_sound(freq: f32, sample_rate: u32) -> MemorySound {
         let mut sine_wave = SineWave::with_sample_rate(freq, sample_rate);
         let mut samples = vec![];
@@ -53,7 +56,7 @@ impl SineWave {
 /// be close to 0 to minimize distortion when resetting.
 ///
 /// We want to minimize the sample number though because large numbers
-/// cause distortions and also minimize memory usage for as_memory_sound.
+/// cause distortions and also minimize memory usage for `as_memory_sound`.
 fn find_reset_num(freq: f32, sample_rate: u32) -> u32 {
     let mut best_error = i16::MAX;
     let mut best_reset_num = 0;
@@ -86,7 +89,7 @@ impl crate::Sound for SineWave {
         self.sample_rate
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         if self.sample_num == self.reset_num {
             self.sample_num = 0;
         } else {
@@ -106,7 +109,3 @@ fn sample_for(sample_num: f32, freq: f32, sample_rate: f32) -> i16 {
     let value = sample_num * freq * TAU / sample_rate;
     (value.sin() * i16::MAX as f32) as i16
 }
-
-#[cfg(test)]
-#[path = "./tests/sine_wave.rs"]
-mod tests;

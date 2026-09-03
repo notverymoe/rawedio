@@ -8,7 +8,7 @@ use crate::Sound;
 /// start playing.
 ///
 /// If an Error is returned from a Sound it is dropped and the error is
-/// propagated to the caller. Calling next_sound again would continue
+/// propagated to the caller. Calling `next_sound` again would continue
 /// with the next Sound in the list.
 pub struct SoundList {
     sounds: Vec<Box<dyn Sound>>,
@@ -16,7 +16,8 @@ pub struct SoundList {
 }
 
 impl SoundList {
-    /// Create a new empty SoundList.
+    /// Create a new empty `SoundList`.
+    #[must_use]
     pub fn new() -> Self {
         SoundList {
             sounds: Vec::new(),
@@ -42,7 +43,7 @@ impl SoundList {
         if self.sounds.is_empty() {
             self.was_empty = true;
         }
-        self.sounds.insert(index, sound)
+        self.sounds.insert(index, sound);
     }
 
     /// Stop all sounds including the currently playing one.
@@ -51,11 +52,13 @@ impl SoundList {
     }
 
     /// Returns the number of sounds currently in the list.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.sounds.len()
     }
 
     /// Returns `true` if the list is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.sounds.is_empty()
     }
@@ -89,15 +92,13 @@ impl Sound for SoundList {
     fn channel_count(&self) -> u16 {
         self.sounds
             .first()
-            .map(|s| s.channel_count())
-            .unwrap_or(DEFAULT_CHANNEL_COUNT)
+            .map_or(DEFAULT_CHANNEL_COUNT, Sound::channel_count)
     }
 
     fn sample_rate(&self) -> u32 {
         self.sounds
             .first()
-            .map(|s| s.sample_rate())
-            .unwrap_or(DEFAULT_SAMPLE_RATE)
+            .map_or(DEFAULT_SAMPLE_RATE, Sound::sample_rate)
     }
 
     fn on_start_of_batch(&mut self) {
@@ -106,7 +107,7 @@ impl Sound for SoundList {
         }
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         let Some(next_sound) = self.sounds.first_mut() else {
             return Ok(NextSample::Finished);
         };
@@ -165,7 +166,3 @@ impl std::fmt::Debug for SoundList {
             .finish()
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/sound_list.rs"]
-mod tests;

@@ -79,7 +79,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         match &mut self.converter_type {
             ConverterType::PassThrough => {
                 let next = self.inner.next_sample()?;
@@ -125,14 +125,14 @@ where
                 };
 
                 // Get the average of the two
-                let avg = ((sample1 as i32 + sample2 as i32) / 2) as i16;
+                let avg = i16::midpoint(sample1, sample2);
                 Ok(NextSample::Sample(avg))
             }
         }
     }
 
     fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch()
+        self.inner.on_start_of_batch();
     }
 }
 

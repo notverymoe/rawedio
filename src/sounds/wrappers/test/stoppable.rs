@@ -1,5 +1,4 @@
-use super::*;
-use crate::tests::ConstantValueSound;
+use crate::{Sound, sounds::wrappers::SetStopped, utils::tests::ConstantValueSound};
 
 #[test]
 fn set_stopped() {

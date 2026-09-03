@@ -1,4 +1,4 @@
-use awedio::Sound;
+use rawedio::Sound;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Some(file_path) = args() else {
@@ -6,8 +6,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(2);
     };
 
-    let (mut manager, _backend) = awedio::start()?;
-    let (sound, notifier) = awedio::sounds::open_file(file_path)?.with_completion_notifier();
+    let (mut manager, _backend) = rawedio::start()?;
+    let (sound, notifier) = rawedio::sounds::open_file(file_path)?.with_completion_notifier();
 
     manager.play(Box::new(sound));
     let _ = notifier.recv();

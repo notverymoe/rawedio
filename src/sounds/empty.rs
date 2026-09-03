@@ -6,7 +6,8 @@ pub struct Empty {
 
 impl Empty {
     /// Create a new sound that will immediately and always returns Finished
-    pub fn new(channel_count: u16, sample_rate: u32) -> Empty {
+    #[must_use]
+    pub const fn new(channel_count: u16, sample_rate: u32) -> Empty {
         Empty {
             channel_count,
             sample_rate,
@@ -23,7 +24,7 @@ impl crate::Sound for Empty {
         self.sample_rate
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         Ok(crate::NextSample::Finished)
     }
 

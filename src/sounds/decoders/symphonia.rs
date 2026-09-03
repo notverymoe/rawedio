@@ -9,6 +9,7 @@ use symphonia::core::common::Limit;
 use symphonia::core::errors::Error;
 use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader};
+use symphonia::core::io::MediaSourceStreamOptions;
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::meta::MetadataOptions;
 
@@ -33,7 +34,7 @@ impl SymphoniaDecoder {
         data: Box<dyn MediaSource>,
         extension: Option<&str>,
     ) -> Result<SymphoniaDecoder, Error> {
-        let mss = MediaSourceStream::new(data, Default::default());
+        let mss = MediaSourceStream::new(data, MediaSourceStreamOptions::default());
 
         let mut hint = Hint::new();
         if let Some(extension) = extension {
@@ -42,7 +43,7 @@ impl SymphoniaDecoder {
         let meta_opts = MetadataOptions::default()
             .limit_tag_bytes(Limit::Maximum(1))
             .limit_visual_bytes(Limit::Maximum(1));
-        let fmt_opts: FormatOptions = Default::default();
+        let fmt_opts = FormatOptions::default();
         let format = symphonia::default::get_probe().probe(&hint, mss, fmt_opts, meta_opts)?;
 
         // Find the first audio track with a known (decodable) codec.
@@ -61,7 +62,7 @@ impl SymphoniaDecoder {
             _ => unreachable!(),
         };
 
-        let dec_opts: AudioDecoderOptions = Default::default();
+        let dec_opts = AudioDecoderOptions::default();
         let decoder =
             symphonia::default::get_codecs().make_audio_decoder(&audio_params, &dec_opts)?;
 
@@ -89,7 +90,7 @@ impl Sound for SymphoniaDecoder {
         self.sample_rate
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::Error> {
+    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         if self.next_channel_idx >= self.channels.count().try_into().unwrap() {
             self.next_channel_idx = 0;
             self.next_sample_idx += 1;
@@ -101,7 +102,7 @@ impl Sound for SymphoniaDecoder {
                 Ok(Some(false)) => (),
                 Ok(None) => return Ok(NextSample::Finished),
                 Err(e) => return Err(e.into()),
-            };
+            }
             buf_ref = self.decoder.last_decoded();
         }
         let sample = extract_sample_from_ref(&buf_ref, self.next_channel_idx, self.next_sample_idx);
@@ -132,7 +133,7 @@ impl SymphoniaDecoder {
                 Ok(buf_ref) => buf_ref,
                 // Recoverable, but this packet is void. Expect weird noises!
                 Err(Error::DecodeError(e)) => {
-                    log::warn!("DecodeError while decoding stream: {}", e);
+                    log::warn!("DecodeError while decoding stream: {e}");
                     continue;
                 }
                 // Reset required, which is handled correctly by this decoder
@@ -187,15 +188,11 @@ where
     FromSample::from_sample(buffer.plane(channel_idx as usize).unwrap()[sample_idx])
 }
 
-impl From<Error> for crate::Error {
+impl From<Error> for crate::RawedioError {
     fn from(value: Error) -> Self {
         match value {
             Error::IoError(e) => e.into(),
-            e => crate::Error::FormatError(Box::new(e)),
+            e => crate::RawedioError::FormatError(Box::new(e)),
         }
     }
 }
-
-#[cfg(test)]
-#[path = "./tests/symphonia.rs"]
-mod tests;

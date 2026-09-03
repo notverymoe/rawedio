@@ -1,5 +1,5 @@
-use super::*;
-use crate::tests::ConstantValueSound;
+use crate::{Sound, sounds::wrappers::SetVolume, utils::tests::ConstantValueSound};
+
 
 #[test]
 fn adjust_down() {
