@@ -1,5 +1,9 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::{
-    NextSample, RawedioError, Sound, sounds::wrappers::{SampleRateConverter, SetPaused, SetSpeed, Wrapper}, utils::tests::{Sawtooth, adapt_next_sample, adapt_next_samples_for}
+    sounds::wrappers::{SampleRateConverter, SetPaused, SetSpeed, Wrapper},
+    utils::test::{adapt_next_sample, adapt_next_samples_for, Sawtooth},
+    NextSample, RawedioError, Sound,
 };
 
 #[test]
@@ -122,10 +126,7 @@ fn catch_metadata_changed_when_passing_through() {
         assert_eq!(next(&mut converted).unwrap(), NextSample::Sample(0));
         assert_eq!(next(&mut converted).unwrap(), NextSample::Sample(1));
         converted.inner_mut().set_speed(2.0);
-        assert_eq!(
-            next(&mut converted).unwrap(),
-            NextSample::MetadataChanged
-        );
+        assert_eq!(next(&mut converted).unwrap(), NextSample::MetadataChanged);
         assert_eq!(converted.sample_rate(), 1000);
         assert_eq!(converted.inner_mut().sample_rate(), 2000);
         assert_eq!(next(&mut converted).unwrap(), NextSample::Sample(2));

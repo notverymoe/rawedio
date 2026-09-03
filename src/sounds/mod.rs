@@ -1,9 +1,11 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! Items that return or implement [Sound][crate::Sound].
 pub mod decoders;
 pub mod wrappers;
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 mod empty;
 mod memory_sound;

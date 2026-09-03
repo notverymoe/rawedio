@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::{NextSample, Sound};
 
 use super::Wrapper;
@@ -78,7 +80,7 @@ where
     fn sample_rate(&self) -> u32 {
         self.inner.sample_rate()
     }
-    
+
     // TODO OPT `next_samples_for`
 
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {

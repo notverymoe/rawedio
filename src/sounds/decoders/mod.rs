@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! Decoders for various audio formats and file types.
 //!
 //! These are normally accessed via

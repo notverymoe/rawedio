@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::sound::NextSample;
 use crate::sounds::wrappers::{AddSound, ClearSounds};
 use crate::{NextSampleBuffer, Sound};
@@ -107,7 +109,10 @@ impl Sound for SoundList {
         }
     }
 
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<NextSampleBuffer, crate::RawedioError> {
         let Some(next_sound) = self.sounds.first_mut() else {
             return Ok(NextSampleBuffer::Finished(0));
         };
@@ -127,7 +132,9 @@ impl Sound for SoundList {
         //          we could fold some metadata change calls.
 
         let ret = match next_sample {
-            NextSampleBuffer::Continue | NextSampleBuffer::MetadataChanged(_) | NextSampleBuffer::Paused(_) => next_sample,
+            NextSampleBuffer::Continue
+            | NextSampleBuffer::MetadataChanged(_)
+            | NextSampleBuffer::Paused(_) => next_sample,
             NextSampleBuffer::Finished(count) => {
                 self.sounds.remove(0);
                 if self.sounds.is_empty() {

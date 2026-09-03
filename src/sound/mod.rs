@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use std::{
     ops::{Deref, DerefMut},
     time::Duration,
@@ -15,7 +17,7 @@ use crate::{
 };
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 /// A provider of audio samples.
 ///
@@ -31,31 +33,28 @@ pub trait Sound: Send {
     /// (e.g. 48,000).
     fn sample_rate(&self) -> u32;
 
-    /// Retrieve the next set of samples to fill a buffer. 
-    /// 
+    /// Retrieve the next set of samples to fill a buffer.
+    ///
     /// The contents of the buffer are not zero-d but are initialized.
-    /// 
+    ///
     /// The buffer does not need to be filled, as an "early" return
     /// such as `NextSampleBuffer::Finished` should contain the
-    /// number of samples written, the reciever is responsible
+    /// number of samples written, the receiver is responsible
     /// for passing this information up the chain or fill it.
-    /// 
+    ///
     /// Has default sample-by-sample implementation, but
     /// impl to provide faster approaches specific to your
     /// sound.
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<NextSampleBuffer, crate::RawedioError> {
         for (i, dst) in buffer.iter_mut().enumerate() {
             match self.next_sample() {
                 Ok(NextSample::Sample(s)) => *dst = s,
-                Ok(NextSample::MetadataChanged) => {
-                    return Ok(NextSampleBuffer::MetadataChanged(i))
-                }
-                Ok(NextSample::Finished) => {
-                    return Ok(NextSampleBuffer::Finished(i))
-                }
-                Ok(NextSample::Paused) => {
-                    return Ok(NextSampleBuffer::Paused(i))
-                }
+                Ok(NextSample::MetadataChanged) => return Ok(NextSampleBuffer::MetadataChanged(i)),
+                Ok(NextSample::Finished) => return Ok(NextSampleBuffer::Finished(i)),
+                Ok(NextSample::Paused) => return Ok(NextSampleBuffer::Paused(i)),
                 Err(e) => return Err(e),
             }
         }
@@ -122,11 +121,12 @@ pub trait Sound: Send {
             Ok(
                 NextSampleBuffer::MetadataChanged(_)
                 | NextSampleBuffer::Paused(_)
-                | NextSampleBuffer::Finished(_)
-            ) | Err(_) => {
+                | NextSampleBuffer::Finished(_),
+            )
+            | Err(_) => {
                 samples.truncate(from);
                 Err(next)
-            },
+            }
         }
     }
 
@@ -321,19 +321,19 @@ pub enum NextSampleBuffer {
     /// The number of channels or the sample rate has changed. Continue to
     /// retrieve samples afterward. The next sample will always be for the
     /// first track regardless of what track was next before this value was
-    /// returned. 
-    /// 
+    /// returned.
+    ///
     /// Value is the number of samples written before the metadata changed.
     MetadataChanged(usize),
 
     /// No more samples for now. More might come later. It is expected that the
     /// Sound will not be pulled again during this batch of samples.
-    /// 
+    ///
     /// Value is the number of samples written before it paused.
     Paused(usize),
 
     /// All samples have been retrieved and no more will come.
-    /// 
+    ///
     /// Value is the number of samples written before it finished.
     Finished(usize),
 }

@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! Manager is how sounds are played on a backend.
 mod backend_source;
 mod renderer;

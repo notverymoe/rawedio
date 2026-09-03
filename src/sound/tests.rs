@@ -1,5 +1,6 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::utils::tests::{ConstantValueSound, Sawtooth, adapt_next_sample, adapt_next_samples_for};
+use crate::utils::test::{adapt_next_sample, adapt_next_samples_for, ConstantValueSound, Sawtooth};
 use crate::{NextSample, RawedioError, Sound};
 
 #[test]
@@ -84,10 +85,7 @@ fn test_sawtooth_wrap_around() {
         let mut sound = Sawtooth::new(1, 44100);
         sound.value = i16::MAX - 1;
 
-        assert_eq!(
-            next(&mut sound).unwrap(),
-            NextSample::Sample(i16::MAX - 1)
-        );
+        assert_eq!(next(&mut sound).unwrap(), NextSample::Sample(i16::MAX - 1));
         assert_eq!(next(&mut sound).unwrap(), NextSample::Sample(i16::MAX));
         assert_eq!(next(&mut sound).unwrap(), NextSample::Sample(i16::MIN));
     }

@@ -1,11 +1,12 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::{
-    NextSample, RawedioError, Sound, sounds::{
-        SoundList,
-        SoundMixer,
-        wrappers::AddSound
-    }, utils::tests::{
-        ConstantValueSound, DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE, adapt_next_sample, adapt_next_samples_for
-    }
+    sounds::{wrappers::AddSound, SoundList, SoundMixer},
+    utils::test::{
+        adapt_next_sample, adapt_next_samples_for, ConstantValueSound, DEFAULT_CHANNEL_COUNT,
+        DEFAULT_SAMPLE_RATE,
+    },
+    NextSample, RawedioError, Sound,
 };
 
 #[test]

@@ -1,6 +1,12 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use std::sync::Arc;
 
-use crate::{NextSample, RawedioError, Sound, sounds::{MemorySound, SoundList}, utils::tests::{adapt_next_sample, adapt_next_samples_for}};
+use crate::{
+    sounds::{MemorySound, SoundList},
+    utils::test::{adapt_next_sample, adapt_next_samples_for},
+    NextSample, RawedioError, Sound,
+};
 
 #[test]
 fn metadata_change_two_off_does_not_cause_desync() {
@@ -30,7 +36,6 @@ fn metadata_change_two_off_does_not_cause_desync() {
 
     run_with(adapt_next_sample);
     run_with(adapt_next_samples_for);
-    
 }
 
 #[test]

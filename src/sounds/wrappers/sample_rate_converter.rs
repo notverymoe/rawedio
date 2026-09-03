@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::{NextSample, NextSampleBuffer, Sound};
 
 use super::Wrapper;
@@ -153,16 +155,16 @@ where
             Err(Ok(NextSampleBuffer::MetadataChanged(count))) => {
                 self.next_frame.truncate(count);
                 return Ok(false);
-            },
+            }
             // We handle not having any more samples left outside this function
             Err(Ok(NextSampleBuffer::Paused(count))) => {
                 self.next_frame.truncate(count);
                 self.inner_paused = true;
-            },
+            }
             Err(Ok(NextSampleBuffer::Finished(count))) => {
                 self.next_frame.truncate(count);
                 self.inner_paused = false;
-            },
+            }
             Err(Err(e)) => return Err(e),
         }
         Ok(true)
@@ -188,7 +190,7 @@ where
     fn sample_rate(&self) -> u32 {
         self.to_rate
     }
-    
+
     // TODO OPT `next_samples_for`
 
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {

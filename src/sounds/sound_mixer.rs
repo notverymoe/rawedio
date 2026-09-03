@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use super::wrappers::{AddSound, ChannelCountConverter, ClearSounds, SampleRateConverter};
 use crate::sound::NextSample;
 use crate::{NextSampleBuffer, Sound};
@@ -34,7 +36,7 @@ impl SoundMixer {
             output_sample_rate,
             metadata_changed: false,
             next_output_channel_idx: 0,
-            scratch_buffer: Vec::new()
+            scratch_buffer: Vec::new(),
         }
     }
 
@@ -86,14 +88,18 @@ impl Sound for SoundMixer {
 
     /// Guaranteed to not return an Error.
     #[allow(clippy::panic_in_result_fn)]
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
         if self.metadata_changed {
             assert_eq!(self.next_output_channel_idx, 0); // TODO debug assert instead? error?
             self.metadata_changed = false;
             return Ok(NextSampleBuffer::MetadataChanged(0));
         }
 
-        self.scratch_buffer.resize(usize::max(self.scratch_buffer.len(), buffer.len()), 0);
+        self.scratch_buffer
+            .resize(usize::max(self.scratch_buffer.len(), buffer.len()), 0);
         buffer.fill(0);
 
         let mut to_remove = Vec::new();
@@ -104,7 +110,7 @@ impl Sound for SoundMixer {
                 match sound.next_samples_for(&mut self.scratch_buffer[..buffer.len()]) {
                     Ok(NextSampleBuffer::Continue) => {
                         break buffer.len();
-                    },
+                    }
                     Ok(NextSampleBuffer::MetadataChanged(count)) => {
                         // We know that the channel_count and sample_rate haven't changed because
                         // we have wrapped the sound in converters. It is possible that the
@@ -149,7 +155,6 @@ impl Sound for SoundMixer {
                     .zip(self.scratch_buffer[..count].iter())
                     .for_each(|(dst, src)| *dst = dst.saturating_add(*src));
             }
-
         }
 
         for (idx, paused) in to_remove.into_iter().rev() {
@@ -160,18 +165,18 @@ impl Sound for SoundMixer {
             // otherwise drop finished sound
         }
 
-        self.next_output_channel_idx = ((self.next_output_channel_idx as usize + max_written) % (self.output_channel_count as usize)) as u16;
+        self.next_output_channel_idx = ((self.next_output_channel_idx as usize + max_written)
+            % (self.output_channel_count as usize)) as u16;
 
         match (self.sounds.is_empty(), self.paused_sounds.is_empty()) {
             // We assume that we are finished since this sound has been handed
             // off to the Manager so new sounds can't be added without a
             // Controllable. If this is wrapped in a Controllable, the Finished
             // is changed to a Paused by the wrapper.
-            (true, true ) => Ok(NextSampleBuffer::Finished(max_written)),
+            (true, true) => Ok(NextSampleBuffer::Finished(max_written)),
             (true, false) => Ok(NextSampleBuffer::Paused(max_written)),
-            (false,    _) => Ok(NextSampleBuffer::Continue),
+            (false, _) => Ok(NextSampleBuffer::Continue),
         }
-
     }
 
     /// Guaranteed to not return an Error.

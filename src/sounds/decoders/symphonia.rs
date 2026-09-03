@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::NextSample;
 use crate::Sound;
 use symphonia::core::audio::conv::FromSample;

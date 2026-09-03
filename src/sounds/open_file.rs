@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::Sound;
 use std::{fs::File, io::BufReader};
 
@@ -13,7 +15,9 @@ use std::{fs::File, io::BufReader};
 /// on the renderer thread as reading from a file could block the renderer.
 /// Consider convert the sound to a `memory_sound` which is stored entirely in RAM
 /// (and can be cloned cheaply).
-pub fn open_file<P: AsRef<std::path::Path>>(path: P) -> Result<Box<dyn Sound>, crate::RawedioError> {
+pub fn open_file<P: AsRef<std::path::Path>>(
+    path: P,
+) -> Result<Box<dyn Sound>, crate::RawedioError> {
     let file = File::open(path.as_ref())?;
     let reader = BufReader::new(file);
     open_file_with_reader(path.as_ref(), reader)

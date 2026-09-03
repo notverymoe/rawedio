@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 /// A forever stream of samples of value 0 (creating no sound).
 pub struct Silence {
     channel_count: u16,
@@ -26,7 +28,10 @@ impl crate::Sound for Silence {
         self.sample_rate
     }
 
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
         buffer.fill(0);
         Ok(crate::NextSampleBuffer::Continue)
     }

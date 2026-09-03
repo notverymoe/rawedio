@@ -1,6 +1,12 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use std::sync::Arc;
 
-use crate::{NextSample, RawedioError, Sound, sounds::{MemorySound, SoundsFromFn}, utils::tests::{adapt_next_sample, adapt_next_samples_for}};
+use crate::{
+    sounds::{MemorySound, SoundsFromFn},
+    utils::test::{adapt_next_sample, adapt_next_samples_for},
+    NextSample, RawedioError, Sound,
+};
 
 #[test]
 fn basic() {

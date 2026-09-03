@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::{sounds::wrappers::SetPaused, Sound};
 
 use super::{SetSpeed, SetVolume};
@@ -57,7 +59,10 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
         if self.stopped {
             return Ok(crate::NextSampleBuffer::Finished(0));
         }

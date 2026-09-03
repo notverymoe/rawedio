@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! [`CpalBackend`] outputs audio using the [cpal](https://www.docs.rs/cpal)
 //! crate.
 
@@ -9,8 +11,8 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     Error as CpalError, ErrorKind, FromSample, SizedSample,
 };
-use std::error::Error;
 use std::assert_matches;
+use std::error::Error;
 
 pub use cpal::BufferSize as CpalBufferSize;
 
@@ -177,24 +179,25 @@ where
 
         match renderer
             .next_samples_for(&mut scratch_buffer)
-            .expect("renderer should never return an Error") {
-                crate::NextSampleBuffer::Continue => {
-                    // Buffer filled, excellent
-                },
-                crate::NextSampleBuffer::MetadataChanged(_samples) => {
-                    unreachable!("we never change metadata mid-batch")
-                }
-                crate::NextSampleBuffer::Paused(samples) | crate::NextSampleBuffer::Finished(samples) => {
-                    scratch_buffer[samples..].fill(0);
-                    // TODO: implement Finished/Paused
-                }, 
+            .expect("renderer should never return an Error")
+        {
+            crate::NextSampleBuffer::Continue => {
+                // Buffer filled, excellent
+            }
+            crate::NextSampleBuffer::MetadataChanged(_samples) => {
+                unreachable!("we never change metadata mid-batch")
+            }
+            crate::NextSampleBuffer::Paused(samples)
+            | crate::NextSampleBuffer::Finished(samples) => {
+                scratch_buffer[samples..].fill(0);
+                // TODO: implement Finished/Paused
+            }
         }
 
         // Convert scratch buffer contents to final sample buffer type
         for (i, dst) in buffer.iter_mut().enumerate() {
             *dst = T::from_sample(scratch_buffer[i]);
         }
-
     }
 }
 

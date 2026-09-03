@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! Misc utilities
 
 use std::time::Duration;
@@ -40,10 +42,10 @@ pub fn duration_to_num_samples(duration: Duration, channel_count: u16, sample_ra
 }
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 #[cfg(test)]
-pub mod tests {
+pub mod test {
     #![allow(missing_docs)]
 
     //! Common utilities for tests.
@@ -60,30 +62,28 @@ pub mod tests {
     pub fn adapt_next_samples_for(s: &mut dyn Sound) -> Result<NextSample, crate::RawedioError> {
         let mut scratch = [0];
         match s.next_samples_for(&mut scratch) {
-            Ok(NextSampleBuffer::Continue) => {
-                Ok(NextSample::Sample(scratch[0]))
-            },
+            Ok(NextSampleBuffer::Continue) => Ok(NextSample::Sample(scratch[0])),
             Ok(NextSampleBuffer::MetadataChanged(count)) => {
                 if count > 0 {
                     Ok(NextSample::Sample(scratch[0]))
                 } else {
                     Ok(NextSample::MetadataChanged)
                 }
-            },
+            }
             Ok(NextSampleBuffer::Paused(count)) => {
                 if count > 0 {
                     Ok(NextSample::Sample(scratch[0]))
                 } else {
                     Ok(NextSample::Paused)
                 }
-            },
+            }
             Ok(NextSampleBuffer::Finished(count)) => {
                 if count > 0 {
                     Ok(NextSample::Sample(scratch[0]))
                 } else {
                     Ok(NextSample::Finished)
                 }
-            },
+            }
             Err(e) => Err(e),
         }
     }
@@ -117,7 +117,10 @@ pub mod tests {
             self.sample_rate
         }
 
-        fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+        fn next_samples_for(
+            &mut self,
+            buffer: &mut [i16],
+        ) -> Result<NextSampleBuffer, crate::RawedioError> {
             if self.metadata_changed {
                 self.metadata_changed = false;
                 return Ok(NextSampleBuffer::MetadataChanged(0));
@@ -177,7 +180,10 @@ pub mod tests {
             self.sample_rate
         }
 
-        fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+        fn next_samples_for(
+            &mut self,
+            buffer: &mut [i16],
+        ) -> Result<NextSampleBuffer, crate::RawedioError> {
             for dst in buffer {
                 *dst = self.value;
                 self.channel_idx += 1;
@@ -199,5 +205,4 @@ pub mod tests {
             Ok(to_return)
         }
     }
-
 }

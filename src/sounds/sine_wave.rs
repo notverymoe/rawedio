@@ -1,4 +1,6 @@
-use std::{f32::consts::TAU, sync::Arc, assert_matches};
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
+use std::{assert_matches, f32::consts::TAU, sync::Arc};
 
 use crate::{NextSampleBuffer, Sound};
 
@@ -55,11 +57,7 @@ impl SineWave {
         } else {
             self.sample_num += 1;
         }
-        sample_for(
-            self.sample_num as f32,
-            self.freq,
-            self.sample_rate as f32,
-        )
+        sample_for(self.sample_num as f32, self.freq, self.sample_rate as f32)
     }
 }
 
@@ -100,7 +98,10 @@ impl crate::Sound for SineWave {
         self.sample_rate
     }
 
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
         buffer.fill_with(|| self.advance());
         Ok(NextSampleBuffer::Continue)
     }

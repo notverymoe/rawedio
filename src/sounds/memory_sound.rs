@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use std::sync::Arc;
 
 use crate::{NextSample, NextSampleBuffer, Sound};
@@ -120,12 +122,16 @@ impl Sound for MemorySound {
         self.sample_rate
     }
 
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<NextSampleBuffer, crate::RawedioError> {
         let mut remaining = buffer.len();
         while remaining > 0 {
-            let from = buffer.len()-remaining;
+            let from = buffer.len() - remaining;
             let count = usize::min(remaining, self.samples.len() - self.next_sample);
-            buffer[from..from+count].copy_from_slice(&self.samples[self.next_sample..self.next_sample+count]);
+            buffer[from..from + count]
+                .copy_from_slice(&self.samples[self.next_sample..self.next_sample + count]);
             remaining -= count;
             self.next_sample += count;
 
@@ -133,7 +139,7 @@ impl Sound for MemorySound {
                 if self.should_loop && !self.samples.is_empty() {
                     self.next_sample = 0;
                 } else {
-                    return Ok(NextSampleBuffer::Finished(buffer.len()-remaining));
+                    return Ok(NextSampleBuffer::Finished(buffer.len() - remaining));
                 }
             }
         }

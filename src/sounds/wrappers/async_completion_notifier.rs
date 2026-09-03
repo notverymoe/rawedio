@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! [`AsyncCompletionNotifier`] and re-export of the tokio [`oneshot`] channel it
 //! uses for convenience.
 
@@ -46,7 +48,10 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
         let next = self.inner.next_samples_for(buffer)?;
         if let NextSampleBuffer::Finished(_) = next {
             if let Some(sender) = self.sender.take() {

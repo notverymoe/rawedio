@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use crate::{NextSample, NextSampleBuffer, Sound};
 
 type SoundGenerator = Box<dyn FnMut() -> Option<Box<dyn Sound>> + Send>;
@@ -56,15 +58,11 @@ impl SoundsFromFn {
 
 impl Sound for SoundsFromFn {
     fn channel_count(&self) -> u16 {
-        self.current
-            .as_ref()
-            .map_or(1, Sound::channel_count)
+        self.current.as_ref().map_or(1, Sound::channel_count)
     }
 
     fn sample_rate(&self) -> u32 {
-        self.current
-            .as_ref()
-            .map_or(1000, Sound::sample_rate)
+        self.current.as_ref().map_or(1000, Sound::sample_rate)
     }
 
     fn on_start_of_batch(&mut self, count: usize) {
@@ -73,7 +71,10 @@ impl Sound for SoundsFromFn {
         }
     }
 
-    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(
+        &mut self,
+        buffer: &mut [i16],
+    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
         loop {
             let Some(current) = &mut self.current else {
                 return Ok(NextSampleBuffer::Finished(0));

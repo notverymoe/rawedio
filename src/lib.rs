@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 #![cfg_attr(any(feature = "cpal", not(doctest)), doc = include_str!("../README.md"))]

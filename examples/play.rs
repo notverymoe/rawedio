@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 use rawedio::Sound;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -1,4 +1,10 @@
-use crate::{NextSample, RawedioError, Sound, sounds::SineWave, utils::tests::{adapt_next_sample, adapt_next_samples_for}};
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
+use crate::{
+    sounds::SineWave,
+    utils::test::{adapt_next_sample, adapt_next_samples_for},
+    NextSample, RawedioError, Sound,
+};
 
 #[test]
 fn high_freq_wav() {

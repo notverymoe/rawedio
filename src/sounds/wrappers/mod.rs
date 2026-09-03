@@ -1,3 +1,5 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! Wrappers add functionality or modify an existing Sound.
 //!
 //! This is the [Decorator pattern](https://en.wikipedia.org/wiki/Decorator_pattern).
@@ -6,7 +8,7 @@
 //! instead of directly.
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 mod adjustable_speed;
 mod adjustable_volume;
