@@ -164,24 +164,37 @@ fn make_data_callback<T>(
 where
     T: SizedSample + FromSample<i16>,
 {
+    let mut scratch_buffer = Vec::<i16>::default();
+
     move |buffer: &mut [T], _info: &cpal::OutputCallbackInfo| {
         assert!(buffer.len().is_multiple_of(channel_count as usize));
 
-        renderer.on_start_of_batch();
+        // Ensure scratch buffer can fit enough elements
+        scratch_buffer.resize(usize::max(buffer.len(), scratch_buffer.len()), 0);
 
-        buffer.fill_with(|| {
-            let sample = renderer
-                .next_sample()
-                .expect("renderer should never return an Error");
-            match sample {
-                crate::NextSample::Sample(s) => T::from_sample(s),
-                crate::NextSample::MetadataChanged => {
+        // Process sounds to fill scratch buffer
+        renderer.on_start_of_batch(buffer.len());
+
+        match renderer
+            .next_samples_for(&mut scratch_buffer)
+            .expect("renderer should never return an Error") {
+                crate::NextSampleBuffer::Continue => {
+                    // Buffer filled, excellent
+                },
+                crate::NextSampleBuffer::MetadataChanged(_samples) => {
                     unreachable!("we never change metadata mid-batch")
                 }
-                crate::NextSample::Paused => T::from_sample(0), // TODO: implement pausing
-                crate::NextSample::Finished => T::from_sample(0), // TODO: implement finishing
-            }
-        });
+                crate::NextSampleBuffer::Paused(samples) | crate::NextSampleBuffer::Finished(samples) => {
+                    scratch_buffer[samples..].fill(0);
+                    // TODO: implement Finished/Paused
+                }, 
+        }
+
+        // Convert scratch buffer contents to final sample buffer type
+        for (i, dst) in buffer.iter_mut().enumerate() {
+            *dst = T::from_sample(scratch_buffer[i]);
+        }
+
     }
 }
 

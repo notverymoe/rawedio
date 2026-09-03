@@ -56,7 +56,7 @@ impl Sound for Renderer {
     /// from `next_sample` is for the first channel.
     ///
     /// See [`Sound::on_start_of_batch`]
-    fn on_start_of_batch(&mut self) {
-        self.mixer.on_start_of_batch();
+    fn on_start_of_batch(&mut self, count: usize) {
+        self.mixer.on_start_of_batch(count);
     }
 }

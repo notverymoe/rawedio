@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{NextSample, Sound};
+use crate::{NextSample, NextSampleBuffer, Sound};
 
 /// A Sound that stores all samples on the heap.
 ///
@@ -120,6 +120,26 @@ impl Sound for MemorySound {
         self.sample_rate
     }
 
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+        let mut remaining = buffer.len();
+        while remaining > 0 {
+            let from = buffer.len()-remaining;
+            let count = usize::min(remaining, self.samples.len() - self.next_sample);
+            buffer[from..from+count].copy_from_slice(&self.samples[self.next_sample..self.next_sample+count]);
+            remaining -= count;
+            self.next_sample += count;
+
+            if self.next_sample == self.samples.len() {
+                if self.should_loop && !self.samples.is_empty() {
+                    self.next_sample = 0;
+                } else {
+                    return Ok(NextSampleBuffer::Finished(buffer.len()-remaining));
+                }
+            }
+        }
+        Ok(NextSampleBuffer::Continue)
+    }
+
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         if let Some(sample) = self.samples.get(self.next_sample) {
             self.next_sample += 1;
@@ -131,8 +151,6 @@ impl Sound for MemorySound {
             Ok(NextSample::Finished)
         }
     }
-
-    fn on_start_of_batch(&mut self) {}
 }
 
 impl AsRef<[i16]> for MemorySound {

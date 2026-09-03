@@ -57,6 +57,13 @@ where
         self.inner.sample_rate()
     }
 
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+        if self.stopped {
+            return Ok(crate::NextSampleBuffer::Finished(0));
+        }
+        self.inner.next_samples_for(buffer)
+    }
+
     fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         if self.stopped {
             return Ok(crate::NextSample::Finished);
@@ -64,8 +71,8 @@ where
         self.inner.next_sample()
     }
 
-    fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch();
+    fn on_start_of_batch(&mut self, count: usize) {
+        self.inner.on_start_of_batch(count);
     }
 }
 

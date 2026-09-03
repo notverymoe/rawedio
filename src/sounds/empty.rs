@@ -24,9 +24,11 @@ impl crate::Sound for Empty {
         self.sample_rate
     }
 
+    fn next_samples_for(&mut self, _buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+        Ok(crate::NextSampleBuffer::Finished(0))
+    }
+
     fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         Ok(crate::NextSample::Finished)
     }
-
-    fn on_start_of_batch(&mut self) {}
 }

@@ -1,18 +1,23 @@
-use crate::{Sound, sounds::wrappers::SetPaused, utils::tests::ConstantValueSound};
+use crate::{NextSample, RawedioError, Sound, sounds::wrappers::SetPaused, utils::tests::{ConstantValueSound, adapt_next_sample, adapt_next_samples_for}};
 
 #[test]
 fn set_paused_and_unpause() {
-    let mut first = ConstantValueSound::new(1000).pausable();
-    // starts unpaused
-    assert_eq!(
-        first.next_sample().unwrap(),
-        crate::NextSample::Sample(1000)
-    );
-    first.set_paused(true);
-    assert_eq!(first.next_sample().unwrap(), crate::NextSample::Paused);
-    first.set_paused(false);
-    assert_eq!(
-        first.next_sample().unwrap(),
-        crate::NextSample::Sample(1000)
-    );
+    fn run_with(mut next: impl FnMut(&mut dyn Sound) -> Result<NextSample, RawedioError>) {
+        let mut first = ConstantValueSound::new(1000).pausable();
+        // starts unpaused
+        assert_eq!(
+            next(&mut first).unwrap(),
+            crate::NextSample::Sample(1000)
+        );
+        first.set_paused(true);
+        assert_eq!(next(&mut first).unwrap(), crate::NextSample::Paused);
+        first.set_paused(false);
+        assert_eq!(
+            next(&mut first).unwrap(),
+            crate::NextSample::Sample(1000)
+        );
+    }
+
+    run_with(adapt_next_sample);
+    run_with(adapt_next_samples_for);
 }

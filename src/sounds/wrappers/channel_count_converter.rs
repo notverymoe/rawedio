@@ -78,6 +78,8 @@ where
     fn sample_rate(&self) -> u32 {
         self.inner.sample_rate()
     }
+    
+    // TODO OPT `next_samples_for`
 
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         match &mut self.converter_type {
@@ -131,8 +133,8 @@ where
         }
     }
 
-    fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch();
+    fn on_start_of_batch(&mut self, count: usize) {
+        self.inner.on_start_of_batch(count);
     }
 }
 

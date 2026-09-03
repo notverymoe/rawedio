@@ -31,6 +31,38 @@ pub trait Sound: Send {
     /// (e.g. 48,000).
     fn sample_rate(&self) -> u32;
 
+    /// Retrieve the next set of samples to fill a buffer. 
+    /// 
+    /// The contents of the buffer are not zero-d but are initialized.
+    /// 
+    /// The buffer does not need to be filled, as an "early" return
+    /// such as `NextSampleBuffer::Finished` should contain the
+    /// number of samples written, the reciever is responsible
+    /// for passing this information up the chain or fill it.
+    /// 
+    /// Has default sample-by-sample implementation, but
+    /// impl to provide faster approaches specific to your
+    /// sound.
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+        for (i, dst) in buffer.iter_mut().enumerate() {
+            match self.next_sample() {
+                Ok(NextSample::Sample(s)) => *dst = s,
+                Ok(NextSample::MetadataChanged) => {
+                    return Ok(NextSampleBuffer::MetadataChanged(i))
+                }
+                Ok(NextSample::Finished) => {
+                    return Ok(NextSampleBuffer::Finished(i))
+                }
+                Ok(NextSample::Paused) => {
+                    return Ok(NextSampleBuffer::Paused(i))
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(NextSampleBuffer::Continue)
+    }
+
     /// Retrieve the next sample or notification if something has changed.
     /// The first sample is for the first channel and the second is the for
     /// second and so on until `channel_count` and then wraps back to the first
@@ -51,11 +83,11 @@ pub trait Sound: Send {
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError>;
 
     /// Called whenever a new batch of audio samples is requested by the
-    /// backend.
+    /// backend, where `count` is the number of samples in the batch.
     ///
     /// This is a good place to put code that needs to run fairly frequently,
     /// but not for every single audio sample.
-    fn on_start_of_batch(&mut self);
+    fn on_start_of_batch(&mut self, _count: usize) {}
 
     /// Returns the next sample for all channels.
     ///
@@ -68,7 +100,7 @@ pub trait Sound: Send {
     /// will be returned and any previously collected samples are lost.
     /// `Err(Ok(NextSample::Sample))` will never be returned. If an error is
     /// encountered `Err(Err(error::Error))` is returned.
-    fn next_frame(&mut self) -> Result<Vec<i16>, Result<NextSample, crate::RawedioError>> {
+    fn next_frame(&mut self) -> Result<Vec<i16>, Result<NextSampleBuffer, crate::RawedioError>> {
         let mut samples = Vec::with_capacity(self.channel_count() as usize);
         self.append_next_frame_to(&mut samples)?;
         Ok(samples)
@@ -80,21 +112,22 @@ pub trait Sound: Send {
     fn append_next_frame_to(
         &mut self,
         samples: &mut Vec<i16>,
-    ) -> Result<(), Result<NextSample, crate::RawedioError>> {
-        for _ in 0..self.channel_count() {
-            let next = self.next_sample();
-            match next {
-                Ok(NextSample::Sample(s)) => samples.push(s),
-                Ok(
-                    NextSample::MetadataChanged | 
-                    NextSample::Paused | 
-                    NextSample::Finished
-                ) | Err(_) => {
-                    return Err(next)
-                },
-            }
+    ) -> Result<(), Result<NextSampleBuffer, crate::RawedioError>> {
+        let from = samples.len();
+        samples.resize(from + self.channel_count() as usize, 0);
+
+        let next = self.next_samples_for(&mut samples[from..]);
+        match next {
+            Ok(NextSampleBuffer::Continue) => Ok(()),
+            Ok(
+                NextSampleBuffer::MetadataChanged(_)
+                | NextSampleBuffer::Paused(_)
+                | NextSampleBuffer::Finished(_)
+            ) | Err(_) => {
+                samples.truncate(from);
+                Err(next)
+            },
         }
-        Ok(())
     }
 
     /// Read the entire sound into memory. `MemorySound` can be cloned for
@@ -281,6 +314,32 @@ pub trait Sound: Send {
 
 /// The result of [`Sound::next_sample`]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NextSampleBuffer {
+    /// The buffer was written to, and the sound is continuing to play
+    Continue,
+
+    /// The number of channels or the sample rate has changed. Continue to
+    /// retrieve samples afterward. The next sample will always be for the
+    /// first track regardless of what track was next before this value was
+    /// returned. 
+    /// 
+    /// Value is the number of samples written before the metadata changed.
+    MetadataChanged(usize),
+
+    /// No more samples for now. More might come later. It is expected that the
+    /// Sound will not be pulled again during this batch of samples.
+    /// 
+    /// Value is the number of samples written before it paused.
+    Paused(usize),
+
+    /// All samples have been retrieved and no more will come.
+    /// 
+    /// Value is the number of samples written before it finished.
+    Finished(usize),
+}
+
+/// The result of [`Sound::next_sample`]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NextSample {
     /// A sample for one channel. Channels are interleaved. The first sample is
     /// for the first channel and so forth and repeats (e.g. L-R-L-R-L-R).
@@ -301,8 +360,8 @@ pub enum NextSample {
 }
 
 impl Sound for Box<dyn Sound> {
-    fn on_start_of_batch(&mut self) {
-        self.deref_mut().on_start_of_batch();
+    fn on_start_of_batch(&mut self, count: usize) {
+        self.deref_mut().on_start_of_batch(count);
     }
 
     fn channel_count(&self) -> u16 {

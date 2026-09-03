@@ -1,4 +1,4 @@
-use crate::{NextSample, Sound};
+use crate::{NextSample, NextSampleBuffer, Sound};
 
 use super::Wrapper;
 
@@ -111,14 +111,14 @@ where
             let mut collect_frame = || match self.inner.next_frame() {
                 Ok(f) => Ok(f),
                 Err(special) => match special {
-                    Ok(NextSample::Sample(_)) => unreachable!(),
-                    Ok(NextSample::MetadataChanged) => Err(None),
+                    Ok(NextSampleBuffer::Continue) => unreachable!(),
+                    Ok(NextSampleBuffer::MetadataChanged(_)) => Err(None),
                     Err(e) => Err(Some(e)),
-                    Ok(NextSample::Paused) => {
+                    Ok(NextSampleBuffer::Paused(_)) => {
                         self.inner_paused = true;
                         Ok(Vec::new())
                     }
-                    Ok(NextSample::Finished) => {
+                    Ok(NextSampleBuffer::Finished(_)) => {
                         self.inner_paused = false;
                         Ok(Vec::new())
                     }
@@ -149,13 +149,20 @@ where
         let specials = self.inner.append_next_frame_to(&mut self.next_frame);
         match specials {
             Ok(()) => (),
-            Err(Ok(NextSample::Sample(_))) => unreachable!(),
-            Err(Ok(NextSample::MetadataChanged)) => {
+            Err(Ok(NextSampleBuffer::Continue)) => unreachable!(),
+            Err(Ok(NextSampleBuffer::MetadataChanged(count))) => {
+                self.next_frame.truncate(count);
                 return Ok(false);
-            }
+            },
             // We handle not having any more samples left outside this function
-            Err(Ok(NextSample::Paused)) => self.inner_paused = true,
-            Err(Ok(NextSample::Finished)) => self.inner_paused = false,
+            Err(Ok(NextSampleBuffer::Paused(count))) => {
+                self.next_frame.truncate(count);
+                self.inner_paused = true;
+            },
+            Err(Ok(NextSampleBuffer::Finished(count))) => {
+                self.next_frame.truncate(count);
+                self.inner_paused = false;
+            },
             Err(Err(e)) => return Err(e),
         }
         Ok(true)
@@ -181,6 +188,8 @@ where
     fn sample_rate(&self) -> u32 {
         self.to_rate
     }
+    
+    // TODO OPT `next_samples_for`
 
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         if self.channel_count_changed {
@@ -312,8 +321,8 @@ where
         }
     }
 
-    fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch();
+    fn on_start_of_batch(&mut self, count: usize) {
+        self.inner.on_start_of_batch(count);
     }
 }
 

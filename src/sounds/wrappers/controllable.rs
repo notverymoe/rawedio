@@ -59,6 +59,27 @@ where
         self.inner.sample_rate()
     }
 
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+        let next = self.inner.next_samples_for(buffer)?;
+        match next {
+            crate::NextSampleBuffer::Continue
+            | crate::NextSampleBuffer::MetadataChanged(_)
+            | crate::NextSampleBuffer::Paused(_) => Ok(next),
+            // Since this is controllable we might add another sound later.
+            // Ideally we would do this only if the inner sound can have sounds
+            // added to it but I don't think we can branch on S: AddSound here.
+            // We could add a Sound::is_addable but lets avoid that until we see
+            // a reason why it is necessary.
+            crate::NextSampleBuffer::Finished(count) => {
+                if self.finished {
+                    Ok(crate::NextSampleBuffer::Finished(count))
+                } else {
+                    Ok(crate::NextSampleBuffer::Paused(count))
+                }
+            }
+        }
+    }
+
     fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         let next = self.inner.next_sample()?;
         match next {
@@ -80,7 +101,7 @@ where
         }
     }
 
-    fn on_start_of_batch(&mut self) {
+    fn on_start_of_batch(&mut self, count: usize) {
         loop {
             match self.command_receiver.try_recv() {
                 Ok(command) => command(&mut self.inner),
@@ -91,7 +112,7 @@ where
                 }
             }
         }
-        self.inner.on_start_of_batch();
+        self.inner.on_start_of_batch(count);
     }
 }
 

@@ -55,6 +55,8 @@ where
         self.sample_rate
     }
 
+    // TODO PRI OPT `next_samples_for`
+
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         loop {
             let Some(next_sample) = self.raw_decoder.next() else {
@@ -78,8 +80,6 @@ where
             }
         }
     }
-
-    fn on_start_of_batch(&mut self) {}
 }
 
 impl From<DecodeError> for crate::RawedioError {

@@ -62,6 +62,8 @@ where
         self.inner.sample_rate()
     }
 
+    // TODO OPT `next_samples_for`
+
     fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         if self.samples_remaining == 0 {
             return Ok(crate::NextSample::Finished);
@@ -97,8 +99,8 @@ where
         Ok(next)
     }
 
-    fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch();
+    fn on_start_of_batch(&mut self, count: usize) {
+        self.inner.on_start_of_batch(count);
     }
 }
 

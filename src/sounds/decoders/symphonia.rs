@@ -90,6 +90,8 @@ impl Sound for SymphoniaDecoder {
         self.sample_rate
     }
 
+    // TODO PRI OPT `next_samples_for`
+
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         if self.next_channel_idx >= self.channels.count().try_into().unwrap() {
             self.next_channel_idx = 0;
@@ -109,8 +111,6 @@ impl Sound for SymphoniaDecoder {
         self.next_channel_idx += 1;
         Ok(NextSample::Sample(sample))
     }
-
-    fn on_start_of_batch(&mut self) {}
 }
 
 impl SymphoniaDecoder {

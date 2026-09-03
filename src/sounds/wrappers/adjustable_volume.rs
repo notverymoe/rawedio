@@ -1,4 +1,4 @@
-use crate::Sound;
+use crate::{NextSampleBuffer, Sound};
 
 use super::{SetPaused, SetSpeed, SetStopped};
 
@@ -75,6 +75,18 @@ where
         self.inner.sample_rate()
     }
 
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+        let next = self.inner.next_samples_for(buffer)?;
+        let count = match next {
+            NextSampleBuffer::Continue => buffer.len(),
+            NextSampleBuffer::MetadataChanged(count) |
+                NextSampleBuffer::Paused(count) |
+                NextSampleBuffer::Finished(count) => count,
+        };
+        buffer[..count].iter_mut().for_each(|s| *s = ((*s as f32) * self.volume_adjustment) as i16);
+        Ok(next)
+    }
+
     fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
         let next = self.inner.next_sample()?;
         Ok(match next {
@@ -90,8 +102,149 @@ where
         })
     }
 
-    fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch();
+    fn on_start_of_batch(&mut self, count: usize) {
+        self.inner.on_start_of_batch(count);
+    }
+    
+    fn into_memory_sound(self) -> Result<crate::sounds::MemorySound, crate::RawedioError>
+    where
+        Self: Sized,
+    {
+        crate::sounds::MemorySound::from_sound(self)
+    }
+    
+    fn loop_from_memory(self) -> Result<crate::sounds::MemorySound, crate::RawedioError>
+    where
+        Self: Sized,
+    {
+        let mut to_return = crate::sounds::MemorySound::from_sound(self)?;
+        to_return.set_looping(true);
+        Ok(to_return)
+    }
+    
+    fn controllable(self) -> (super::Controllable<Self>, super::Controller<Self>)
+    where
+        Self: Sized,
+    {
+        super::Controllable::new(self)
+    }
+    
+    fn with_async_completion_notifier(
+        self,
+    ) -> (
+        crate::sounds::wrappers::AsyncCompletionNotifier<Self>,
+        tokio::sync::oneshot::Receiver<()>,
+    )
+    where
+        Self: Sized,
+    {
+        crate::sounds::wrappers::AsyncCompletionNotifier::new(self)
+    }
+    
+    fn with_completion_notifier(
+        self,
+    ) -> (
+        crate::sounds::wrappers::CompletionNotifier<Self>,
+        std::sync::mpsc::Receiver<()>,
+    )
+    where
+        Self: Sized,
+    {
+        crate::sounds::wrappers::CompletionNotifier::new(self)
+    }
+    
+    fn with_adjustable_volume(self) -> AdjustableVolume<Self>
+    where
+        Self: Sized,
+    {
+        AdjustableVolume::new(self)
+    }
+    
+    fn with_adjustable_volume_of(self, volume_adjustment: f32) -> AdjustableVolume<Self>
+    where
+        Self: Sized,
+    {
+        AdjustableVolume::new_with_volume(self, volume_adjustment)
+    }
+    
+    fn with_adjustable_speed(self) -> super::AdjustableSpeed<Self>
+    where
+        Self: Sized,
+    {
+        super::AdjustableSpeed::new(self)
+    }
+    
+    fn with_adjustable_speed_of(self, speed_adjustment: f32) -> super::AdjustableSpeed<Self>
+    where
+        Self: Sized,
+    {
+        super::AdjustableSpeed::new_with_speed(self, speed_adjustment)
+    }
+    
+    fn pausable(self) -> super::Pausable<Self>
+    where
+        Self: Sized,
+    {
+        super::Pausable::new(self)
+    }
+    
+    fn paused(self) -> super::Pausable<Self>
+    where
+        Self: Sized,
+    {
+        let mut to_return = super::Pausable::new(self);
+        to_return.set_paused(true);
+        to_return
+    }
+    
+    fn stoppable(self) -> super::Stoppable<Self>
+    where
+        Self: Sized,
+    {
+        super::Stoppable::new(self)
+    }
+    
+    fn finish_after(self, duration: std::time::Duration) -> super::FinishAfter<Self>
+    where
+        Self: Sized,
+    {
+        super::FinishAfter::new(self, duration)
+    }
+    
+    fn skip(&mut self, duration: std::time::Duration) -> Result<bool, crate::RawedioError> {
+        let mut current_channel_count = self.channel_count();
+        let mut current_sample_rate = self.sample_rate();
+        let mut num_samples_remaining =
+            crate::utils::duration_to_num_samples(duration, current_channel_count, current_sample_rate);
+    
+        while num_samples_remaining > 0 {
+            let next = self.next_sample()?;
+            match next {
+                crate::NextSample::Sample(_) => {
+                    num_samples_remaining -= 1;
+                }
+                crate::NextSample::MetadataChanged => {
+                    let new_channel_count = self.channel_count();
+                    let new_sample_rate = self.sample_rate();
+                    if new_channel_count != current_channel_count
+                        || new_sample_rate != current_sample_rate
+                    {
+                        num_samples_remaining = crate::utils::convert_num_samples(
+                            num_samples_remaining,
+                            current_channel_count,
+                            current_sample_rate,
+                            new_channel_count,
+                            new_sample_rate,
+                        );
+                        current_channel_count = new_channel_count;
+                        current_sample_rate = new_sample_rate;
+                    }
+                }
+                crate::NextSample::Paused => return Ok(false),
+                crate::NextSample::Finished => return Ok(false),
+            }
+        }
+        Ok(true)
     }
 }
 

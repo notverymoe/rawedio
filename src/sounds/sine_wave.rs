@@ -1,6 +1,6 @@
-use std::{f32::consts::TAU, sync::Arc};
+use std::{f32::consts::TAU, sync::Arc, assert_matches};
 
-use crate::{NextSample, Sound};
+use crate::{NextSampleBuffer, Sound};
 
 use super::MemorySound;
 
@@ -39,16 +39,27 @@ impl SineWave {
     #[must_use]
     pub fn as_memory_sound(freq: f32, sample_rate: u32) -> MemorySound {
         let mut sine_wave = SineWave::with_sample_rate(freq, sample_rate);
-        let mut samples = vec![];
-        for _s in 0..=sine_wave.reset_num {
-            let Ok(NextSample::Sample(sample)) = sine_wave.next_sample() else {
-                unreachable!("sine_wave should only return Samples");
-            };
-            samples.push(sample);
-        }
+        let mut samples = vec![0; (sine_wave.reset_num + 1) as usize];
+        assert_matches!(
+            sine_wave.next_samples_for(&mut samples),
+            Ok(NextSampleBuffer::Continue)
+        );
         let mut sound = MemorySound::from_samples(Arc::new(samples), 1, sample_rate);
         sound.set_looping(true);
         sound
+    }
+
+    fn advance(&mut self) -> i16 {
+        if self.sample_num == self.reset_num {
+            self.sample_num = 0;
+        } else {
+            self.sample_num += 1;
+        }
+        sample_for(
+            self.sample_num as f32,
+            self.freq,
+            self.sample_rate as f32,
+        )
     }
 }
 
@@ -89,20 +100,14 @@ impl crate::Sound for SineWave {
         self.sample_rate
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
-        if self.sample_num == self.reset_num {
-            self.sample_num = 0;
-        } else {
-            self.sample_num += 1;
-        }
-        Ok(crate::NextSample::Sample(sample_for(
-            self.sample_num as f32,
-            self.freq,
-            self.sample_rate as f32,
-        )))
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+        buffer.fill_with(|| self.advance());
+        Ok(NextSampleBuffer::Continue)
     }
 
-    fn on_start_of_batch(&mut self) {}
+    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
+        Ok(crate::NextSample::Sample(self.advance()))
+    }
 }
 
 fn sample_for(sample_num: f32, freq: f32, sample_rate: f32) -> i16 {

@@ -1,6 +1,6 @@
 use super::wrappers::{AddSound, ChannelCountConverter, ClearSounds, SampleRateConverter};
 use crate::sound::NextSample;
-use crate::Sound;
+use crate::{NextSampleBuffer, Sound};
 
 type MixedSound = SampleRateConverter<ChannelCountConverter<Box<dyn Sound>>>;
 
@@ -19,6 +19,7 @@ pub struct SoundMixer {
     output_sample_rate: u32,
     metadata_changed: bool,
     next_output_channel_idx: u16,
+    scratch_buffer: Vec<i16>,
 }
 
 impl SoundMixer {
@@ -33,6 +34,7 @@ impl SoundMixer {
             output_sample_rate,
             metadata_changed: false,
             next_output_channel_idx: 0,
+            scratch_buffer: Vec::new()
         }
     }
 
@@ -73,13 +75,103 @@ impl Sound for SoundMixer {
         self.output_sample_rate
     }
 
-    fn on_start_of_batch(&mut self) {
+    fn on_start_of_batch(&mut self, count: usize) {
         // Attempt to grab from paused sounds again
         self.sounds.append(&mut self.paused_sounds);
 
         for sound in &mut self.sounds {
-            sound.on_start_of_batch();
+            sound.on_start_of_batch(count);
         }
+    }
+
+    /// Guaranteed to not return an Error.
+    #[allow(clippy::panic_in_result_fn)]
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+        if self.metadata_changed {
+            assert_eq!(self.next_output_channel_idx, 0); // TODO debug assert instead? error?
+            self.metadata_changed = false;
+            return Ok(NextSampleBuffer::MetadataChanged(0));
+        }
+
+        self.scratch_buffer.resize(usize::max(self.scratch_buffer.len(), buffer.len()), 0);
+        buffer.fill(0);
+
+        let mut to_remove = Vec::new();
+        let mut max_written = 0;
+
+        for (idx, sound) in self.sounds.iter_mut().enumerate() {
+            let count = loop {
+                match sound.next_samples_for(&mut self.scratch_buffer[..buffer.len()]) {
+                    Ok(NextSampleBuffer::Continue) => {
+                        break buffer.len();
+                    },
+                    Ok(NextSampleBuffer::MetadataChanged(count)) => {
+                        // We know that the channel_count and sample_rate haven't changed because
+                        // we have wrapped the sound in converters. It is possible that the
+                        // MetadataChanged implies we need to start over at the first channel.
+                        // Normally however Metadata only change on the first sample of a frame
+                        // so handle that by looping around and calling next_sample again
+                        // immediately
+                        if count != 0 {
+                            // In the rare case we see MetadataChange not on
+                            // the first channel, lets pause the sound until the
+                            // next batch to avoid de-syncing the channels.
+                            to_remove.push((idx, true));
+                            break 0;
+                        }
+
+                        // continue
+                    }
+                    Ok(NextSampleBuffer::Paused(count)) => {
+                        to_remove.push((idx, true));
+                        break count;
+                    }
+                    Ok(NextSampleBuffer::Finished(count)) => {
+                        to_remove.push((idx, false));
+                        break count;
+                    }
+                    Err(e) => {
+                        // TODO probably want to let applications subscribe to be notified of these
+                        // errors
+                        log::error!("dropping sound in SoundMixer which returned error: {e}");
+                        to_remove.push((idx, false));
+                        break 0;
+                    }
+                }
+            };
+
+            max_written = usize::max(max_written, count);
+
+            if count > 0 {
+                // Accumulate
+                buffer[..count]
+                    .iter_mut()
+                    .zip(self.scratch_buffer[..count].iter())
+                    .for_each(|(dst, src)| *dst = dst.saturating_add(*src));
+            }
+
+        }
+
+        for (idx, paused) in to_remove.into_iter().rev() {
+            let sound = self.sounds.swap_remove(idx);
+            if paused {
+                self.paused_sounds.push(sound);
+            }
+            // otherwise drop finished sound
+        }
+
+        self.next_output_channel_idx = ((self.next_output_channel_idx as usize + max_written) % (self.output_channel_count as usize)) as u16;
+
+        match (self.sounds.is_empty(), self.paused_sounds.is_empty()) {
+            // We assume that we are finished since this sound has been handed
+            // off to the Manager so new sounds can't be added without a
+            // Controllable. If this is wrapped in a Controllable, the Finished
+            // is changed to a Paused by the wrapper.
+            (true, true ) => Ok(NextSampleBuffer::Finished(max_written)),
+            (true, false) => Ok(NextSampleBuffer::Paused(max_written)),
+            (false,    _) => Ok(NextSampleBuffer::Continue),
+        }
+
     }
 
     /// Guaranteed to not return an Error.

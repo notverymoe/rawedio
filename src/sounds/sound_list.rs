@@ -1,6 +1,6 @@
 use crate::sound::NextSample;
 use crate::sounds::wrappers::{AddSound, ClearSounds};
-use crate::Sound;
+use crate::{NextSampleBuffer, Sound};
 
 /// Play Sounds sequentially one after the other.
 ///
@@ -101,10 +101,45 @@ impl Sound for SoundList {
             .map_or(DEFAULT_SAMPLE_RATE, Sound::sample_rate)
     }
 
-    fn on_start_of_batch(&mut self) {
+    fn on_start_of_batch(&mut self, count: usize) {
         for sound in &mut self.sounds {
-            sound.on_start_of_batch();
+            sound.on_start_of_batch(count);
         }
+    }
+
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+        let Some(next_sound) = self.sounds.first_mut() else {
+            return Ok(NextSampleBuffer::Finished(0));
+        };
+        if self.was_empty {
+            self.was_empty = false;
+            return Ok(NextSampleBuffer::MetadataChanged(0));
+        }
+        let next_sample = match next_sound.next_samples_for(buffer) {
+            Ok(s) => s,
+            Err(e) => {
+                self.sounds.remove(0);
+                return Err(e);
+            }
+        };
+
+        // TODO OPT if we tracked metadata like sounds_from_fn,
+        //          we could fold some metadata change calls.
+
+        let ret = match next_sample {
+            NextSampleBuffer::Continue | NextSampleBuffer::MetadataChanged(_) | NextSampleBuffer::Paused(_) => next_sample,
+            NextSampleBuffer::Finished(count) => {
+                self.sounds.remove(0);
+                if self.sounds.is_empty() {
+                    NextSampleBuffer::Finished(count)
+                } else {
+                    // The next sample might have different metadata. Instead of
+                    // normalizing here let downstream normalize.
+                    NextSampleBuffer::MetadataChanged(count)
+                }
+            }
+        };
+        Ok(ret)
     }
 
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {

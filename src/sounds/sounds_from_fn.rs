@@ -1,4 +1,4 @@
-use crate::{NextSample, Sound};
+use crate::{NextSample, NextSampleBuffer, Sound};
 
 type SoundGenerator = Box<dyn FnMut() -> Option<Box<dyn Sound>> + Send>;
 
@@ -67,9 +67,49 @@ impl Sound for SoundsFromFn {
             .map_or(1000, Sound::sample_rate)
     }
 
-    fn on_start_of_batch(&mut self) {
+    fn on_start_of_batch(&mut self, count: usize) {
         if let Some(current) = &mut self.current {
-            current.on_start_of_batch();
+            current.on_start_of_batch(count);
+        }
+    }
+
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+        loop {
+            let Some(current) = &mut self.current else {
+                return Ok(NextSampleBuffer::Finished(0));
+            };
+            let sample = current.next_samples_for(buffer);
+            let sample = match sample {
+                Ok(s) => s,
+                Err(e) => {
+                    self.current = None;
+                    self.current = (self.generator)();
+                    self.update_metadata();
+                    return Err(e);
+                }
+            };
+            match sample {
+                NextSampleBuffer::MetadataChanged(_) => {
+                    self.update_metadata();
+                    return Ok(sample);
+                }
+                NextSampleBuffer::Continue | NextSampleBuffer::Paused(_) => return Ok(sample),
+                NextSampleBuffer::Finished(count) => {
+                    let old_channel_count = self.current_channel_count;
+                    let old_sample_rate = self.current_sample_rate;
+                    self.current = None;
+                    self.current = (self.generator)();
+                    self.update_metadata();
+                    if self.current.is_none() {
+                        return Ok(NextSampleBuffer::Finished(count));
+                    }
+                    if old_sample_rate != self.sample_rate()
+                        || old_channel_count != self.channel_count()
+                    {
+                        return Ok(NextSampleBuffer::MetadataChanged(count));
+                    }
+                }
+            }
         }
     }
 

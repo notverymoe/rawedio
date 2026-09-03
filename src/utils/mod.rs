@@ -48,10 +48,45 @@ pub mod tests {
 
     //! Common utilities for tests.
 
-    use crate::{NextSample, Sound};
+    use crate::{NextSample, NextSampleBuffer, Sound};
 
     pub const DEFAULT_SAMPLE_RATE: u32 = 44100;
     pub const DEFAULT_CHANNEL_COUNT: u16 = 2;
+
+    pub fn adapt_next_sample(s: &mut dyn Sound) -> Result<NextSample, crate::RawedioError> {
+        s.next_sample()
+    }
+
+    pub fn adapt_next_samples_for(s: &mut dyn Sound) -> Result<NextSample, crate::RawedioError> {
+        let mut scratch = [0];
+        match s.next_samples_for(&mut scratch) {
+            Ok(NextSampleBuffer::Continue) => {
+                Ok(NextSample::Sample(scratch[0]))
+            },
+            Ok(NextSampleBuffer::MetadataChanged(count)) => {
+                if count > 0 {
+                    Ok(NextSample::Sample(scratch[0]))
+                } else {
+                    Ok(NextSample::MetadataChanged)
+                }
+            },
+            Ok(NextSampleBuffer::Paused(count)) => {
+                if count > 0 {
+                    Ok(NextSample::Sample(scratch[0]))
+                } else {
+                    Ok(NextSample::Paused)
+                }
+            },
+            Ok(NextSampleBuffer::Finished(count)) => {
+                if count > 0 {
+                    Ok(NextSample::Sample(scratch[0]))
+                } else {
+                    Ok(NextSample::Finished)
+                }
+            },
+            Err(e) => Err(e),
+        }
+    }
 
     /// Only useful for tests as a constant offset makes no hearable sound.
     pub struct ConstantValueSound {
@@ -82,6 +117,15 @@ pub mod tests {
             self.sample_rate
         }
 
+        fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+            if self.metadata_changed {
+                self.metadata_changed = false;
+                return Ok(NextSampleBuffer::MetadataChanged(0));
+            }
+            buffer.fill(self.value);
+            Ok(NextSampleBuffer::Continue)
+        }
+
         fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
             if self.metadata_changed {
                 self.metadata_changed = false;
@@ -89,8 +133,6 @@ pub mod tests {
             }
             Ok(NextSample::Sample(self.value))
         }
-
-        fn on_start_of_batch(&mut self) {}
     }
 
     impl ConstantValueSound {
@@ -135,6 +177,18 @@ pub mod tests {
             self.sample_rate
         }
 
+        fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, crate::RawedioError> {
+            for dst in buffer {
+                *dst = self.value;
+                self.channel_idx += 1;
+                if self.channel_idx == self.channel_count {
+                    self.channel_idx = 0;
+                    self.value = self.value.wrapping_add(1);
+                }
+            }
+            Ok(NextSampleBuffer::Continue)
+        }
+
         fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
             let to_return = NextSample::Sample(self.value);
             self.channel_idx += 1;
@@ -144,8 +198,6 @@ pub mod tests {
             }
             Ok(to_return)
         }
-
-        fn on_start_of_batch(&mut self) {}
     }
 
 }

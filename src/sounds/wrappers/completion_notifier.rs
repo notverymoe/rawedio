@@ -1,5 +1,6 @@
 use super::Wrapper;
 use crate::NextSample;
+use crate::NextSampleBuffer;
 use crate::Sound;
 use std::sync::mpsc;
 
@@ -45,6 +46,18 @@ where
         self.inner.sample_rate()
     }
 
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+        let next = self.inner.next_samples_for(buffer)?;
+        if let NextSampleBuffer::Finished(_) = next {
+            if let Some(sender) = self.sender.take() {
+                // If the consumer dropped their receiver because they don't need it anymore its
+                // not an error.
+                let _res = sender.send(());
+            }
+        }
+        Ok(next)
+    }
+
     fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
         let next = self.inner.next_sample()?;
         if let NextSample::Finished = next {
@@ -57,8 +70,8 @@ where
         Ok(next)
     }
 
-    fn on_start_of_batch(&mut self) {
-        self.inner.on_start_of_batch();
+    fn on_start_of_batch(&mut self, count: usize) {
+        self.inner.on_start_of_batch(count);
     }
 }
 
