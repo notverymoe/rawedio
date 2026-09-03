@@ -1,3 +1,29 @@
+# Rawedio
+
+## [0.9.0] - 2026-09-03
+
+Setup
+- Update Readme
+- Remove hound and rmp3
+- Update default cargo options
+- Ensure SIMD for symphonia
+- Refactor project to not use "path="
+- Refactor project to prefer "mod.rs"
+- Add clippy cfg and fix lints
+- Update name awedio -> rawedio
+- Add boilerplate license info
+- Run cargo fmt
+
+Basic Chunk Sampling
+- Implement sampling in chunks where easy
+- Provide fallback chunk sampling
+- Mark TODO chunk sampling locations
+- Update frame-by-frame methods to use chunk method
+- Add field to batching that indicates the size of the batch
+- Update tests
+
+# Awedio
+
 ## [0.8.0] - 2026-06-12
 
 ### Features

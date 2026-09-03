@@ -1,12 +1,12 @@
 [package]
 name = "rawedio"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 authors = ["(Fork) Natalie Baker", "(Original) Ben Hansen <bh@benhansen.io>"]
 description = "A low-overhead and adaptable audio playback library, forked."
 license = "MIT OR Apache-2.0"
 keywords = ["audio", "playback"]
-categories = ["multimedia::audio", "embedded"]
+categories = ["multimedia::audio"]
 repository = "https://github.com/notverymoe/rawedio"
 
 [features]
