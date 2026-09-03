@@ -1,17 +1,16 @@
+//| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
+
 //! [`CpalBackend`] outputs audio using the [cpal](https://www.docs.rs/cpal)
 //! crate.
 
-use crate::{
-    manager::{BackendSource, Manager, Renderer},
-    Sound,
-};
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    Error as CpalError, ErrorKind, FromSample, SizedSample,
-};
+use std::assert_matches;
 use std::error::Error;
 
-pub use cpal::BufferSize as CpalBufferSize;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{BufferSize as CpalBufferSize, Error as CpalError, ErrorKind, FromSample, SizedSample};
+
+use crate::manager::{BackendSource, Manager, Renderer};
+use crate::{NextState, Sound};
 
 /// A backend that uses [cpal](https://www.docs.rs/cpal) to output to devices.
 ///
@@ -27,9 +26,10 @@ pub struct CpalBackend {
 }
 
 impl CpalBackend {
-    /// Create a new CpalBackend with defaults for all fields.
+    /// Create a new `CpalBackend` with defaults for all fields.
     ///
     /// Returns None if a default device or config could not be obtained.
+    #[must_use]
     pub fn with_defaults() -> Option<CpalBackend> {
         let host = cpal::default_host();
 
@@ -53,6 +53,7 @@ impl CpalBackend {
     /// Create a new backend.
     ///
     /// Returns None if an output device is not found
+    #[must_use]
     pub fn with_default_host_and_device(
         channel_count: u16,
         sample_rate: u32,
@@ -73,8 +74,9 @@ impl CpalBackend {
         })
     }
 
-    /// Create a new CpalBackend specifying all fields.
-    pub fn new(
+    /// Create a new `CpalBackend` specifying all fields.
+    #[must_use]
+    pub const fn new(
         channel_count: u16,
         sample_rate: u32,
         buffer_size: CpalBufferSize,
@@ -95,18 +97,19 @@ impl CpalBackend {
 impl CpalBackend {
     /// Start a cpal output stream and connect it to the returned Manager.
     ///
-    /// Only a single stream is supported at a time per CpalBackend object.
+    /// Only a single stream is supported at a time per `CpalBackend` object.
     ///
     /// Cpal stream errors will be reported by calling `error_callback`.
+    #[allow(clippy::panic_in_result_fn)]
     pub fn start<E>(&mut self, error_callback: E) -> Result<Manager, CpalBackendError>
-    where
-        E: FnMut(CpalError) + Send + 'static,
-    {
+    where E: FnMut(CpalError) + Send + 'static {
         let (manager, mut renderer) = Manager::new();
         renderer.set_output_channel_count_and_sample_rate(self.channel_count, self.sample_rate);
-        let Ok(crate::NextSample::MetadataChanged) = renderer.next_sample() else {
-            panic!("expected MetadataChanged event")
-        };
+        assert_matches!(
+            renderer.fill_next_frames(&mut []),
+            Ok((_, NextState::MetadataChanged)),
+            "expected MetadataChanged event"
+        );
 
         let config = cpal::StreamConfig {
             channels: self.channel_count,
@@ -137,10 +140,7 @@ impl CpalBackend {
             sample_format => {
                 return Err(CpalBackendError::BuildStream(CpalError::with_message(
                     ErrorKind::UnsupportedConfig,
-                    format!(
-                        "unsupported output stream sample format: {:?}",
-                        sample_format
-                    ),
+                    format!("unsupported output stream sample format: {sample_format:?}"),
                 )))
             }
         };
@@ -151,7 +151,7 @@ impl CpalBackend {
     }
 }
 
-/// Converts Awedio's internal i16 samples to the format required by the audio
+/// Converts Rawedio's internal i16 samples to the format required by the audio
 /// device (type T).
 fn make_data_callback<T>(
     mut renderer: Renderer,
@@ -160,24 +160,37 @@ fn make_data_callback<T>(
 where
     T: SizedSample + FromSample<i16>,
 {
+    let mut scratch_buffer = Vec::<i16>::default();
+
     move |buffer: &mut [T], _info: &cpal::OutputCallbackInfo| {
         assert!(buffer.len().is_multiple_of(channel_count as usize));
 
+        // Ensure scratch buffer can fit enough elements
+        scratch_buffer.resize(usize::max(buffer.len(), scratch_buffer.len()), 0);
+
+        // Process sounds to fill scratch buffer
         renderer.on_start_of_batch();
 
-        buffer.fill_with(|| {
-            let sample = renderer
-                .next_sample()
-                .expect("renderer should never return an Error");
-            match sample {
-                crate::NextSample::Sample(s) => T::from_sample(s),
-                crate::NextSample::MetadataChanged => {
-                    unreachable!("we never change metadata mid-batch")
-                }
-                crate::NextSample::Paused => T::from_sample(0), // TODO: implement pausing
-                crate::NextSample::Finished => T::from_sample(0), // TODO: implement finishing
+        match renderer
+            .fill_next_frames(&mut scratch_buffer)
+            .expect("renderer should never return an Error")
+        {
+            (_, NextState::Playing) => {
+                // Buffer filled, excellent
             }
-        });
+            (_, NextState::MetadataChanged) => {
+                unreachable!("we never change metadata mid-batch")
+            }
+            (count, NextState::Paused | NextState::Finished) => {
+                scratch_buffer[count..].fill(0);
+                // TODO: implement Finished/Paused
+            }
+        }
+
+        // Convert scratch buffer contents to final sample buffer type
+        for (i, dst) in buffer.iter_mut().enumerate() {
+            *dst = T::from_sample(scratch_buffer[i]);
+        }
     }
 }
 

@@ -1,0 +1,10 @@
+max_width = 100
+where_single_line = true
+overflow_delimited_expr = true
+
+reorder_imports = true
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"
+imports_layout = "Mixed"
+
+#cargo +nightly fmt
