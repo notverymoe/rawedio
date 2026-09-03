@@ -29,13 +29,11 @@ impl SoundsFromFn {
     /// ## Examples
     /// Play an audio file forever.
     ///
-    /// ```rust
-    /// # fn no_run() {
+    /// ```rust,no_run
     /// use rawedio::sounds::{SoundsFromFn, open_file};
     ///
     /// let generator = || Some(open_file("test.wav").unwrap());
     /// let forever_sound = SoundsFromFn::new(Box::new(generator));
-    /// # }
     /// ```
     #[must_use]
     pub fn new(mut generator: SoundGenerator) -> Self {
