@@ -7,6 +7,7 @@ pub mod wrappers;
 #[cfg(test)]
 mod tests;
 
+mod async_sound;
 mod empty;
 mod memory_sound;
 mod open_file;
@@ -26,4 +27,5 @@ pub use sound::{NextSample, NextSampleBuffer, Sound};
 pub use sound_list::SoundList;
 pub use sound_mixer::SoundMixer;
 pub use sounds_from_fn::SoundsFromFn;
+pub use async_sound::{start_new_async_sound_worker, AsyncSound, AsyncSoundController};
 

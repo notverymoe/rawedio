@@ -63,6 +63,8 @@ cpal = { version = "0.18", optional = true }
 qoaudio = { version = "0.7", optional = true }
 symphonia = { version = "0.6", optional = true, default-features = false }
 log = "0.4.20"
+rtrb = "0.4.0"
+thiserror = "2.0.20"
 
 [dev-dependencies]
 qoaudio = { version = "0.7" }
