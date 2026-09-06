@@ -96,7 +96,7 @@ where S: Sound
         }
     }
 
-    fn on_start_of_batch(&mut self, count: usize) {
+    fn on_start_of_batch(&mut self) {
         loop {
             match self.command_receiver.try_recv() {
                 Ok(command) => command(&mut self.inner),
@@ -107,7 +107,7 @@ where S: Sound
                 }
             }
         }
-        self.inner.on_start_of_batch(count);
+        self.inner.on_start_of_batch();
     }
 }
 

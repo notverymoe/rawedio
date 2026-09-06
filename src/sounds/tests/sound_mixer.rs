@@ -56,7 +56,7 @@ fn empty_sound_list_not_same_sample_rate() {
         let mut mixer = SoundMixer::new(2, 40000);
         let (sound, mut controller) = SoundList::new().controllable();
         mixer.add(Box::new(sound));
-        mixer.on_start_of_batch(2);
+        mixer.on_start_of_batch();
         assert_eq!(NextSample::Paused, next(&mut mixer).unwrap());
         let mut sound = ConstantValueSound::new(5);
 
@@ -66,7 +66,7 @@ fn empty_sound_list_not_same_sample_rate() {
 
         assert_eq!(NextSample::Paused, next(&mut mixer).unwrap());
 
-        mixer.on_start_of_batch(1);
+        mixer.on_start_of_batch();
         assert_eq!(NextSample::Sample(5), next(&mut mixer).unwrap());
     }
 

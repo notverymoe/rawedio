@@ -63,9 +63,9 @@ impl Sound for SoundsFromFn {
         self.current.as_ref().map_or(1000, Sound::sample_rate)
     }
 
-    fn on_start_of_batch(&mut self, count: usize) {
+    fn on_start_of_batch(&mut self) {
         if let Some(current) = &mut self.current {
-            current.on_start_of_batch(count);
+            current.on_start_of_batch();
         }
     }
 

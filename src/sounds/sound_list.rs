@@ -107,9 +107,9 @@ impl Sound for SoundList {
             .map_or(DEFAULT_SAMPLE_RATE, Sound::sample_rate)
     }
 
-    fn on_start_of_batch(&mut self, count: usize) {
+    fn on_start_of_batch(&mut self) {
         for sound in &mut self.sounds {
-            sound.on_start_of_batch(count);
+            sound.on_start_of_batch();
         }
     }
 

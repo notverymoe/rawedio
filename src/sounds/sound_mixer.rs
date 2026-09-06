@@ -76,12 +76,12 @@ impl Sound for SoundMixer {
         self.output_sample_rate
     }
 
-    fn on_start_of_batch(&mut self, count: usize) {
+    fn on_start_of_batch(&mut self) {
         // Attempt to grab from paused sounds again
         self.sounds.append(&mut self.paused_sounds);
 
         for sound in &mut self.sounds {
-            sound.on_start_of_batch(count);
+            sound.on_start_of_batch();
         }
     }
 

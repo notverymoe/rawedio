@@ -84,8 +84,8 @@ where S: Sound
         self.inner.next_sample()
     }
 
-    fn on_start_of_batch(&mut self, count: usize) {
-        self.inner.on_start_of_batch(count);
+    fn on_start_of_batch(&mut self) {
+        self.inner.on_start_of_batch();
     }
 }
 

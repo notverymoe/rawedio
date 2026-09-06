@@ -82,7 +82,7 @@ pub trait Sound: Send {
     ///
     /// This is a good place to put code that needs to run fairly frequently,
     /// but not for every single audio sample.
-    fn on_start_of_batch(&mut self, _count: usize) {}
+    fn on_start_of_batch(&mut self) {}
 
     /// Returns the next sample for all channels.
     ///
@@ -325,8 +325,8 @@ pub enum NextSample {
 }
 
 impl Sound for Box<dyn Sound> {
-    fn on_start_of_batch(&mut self, count: usize) {
-        self.deref_mut().on_start_of_batch(count);
+    fn on_start_of_batch(&mut self) {
+        self.deref_mut().on_start_of_batch();
     }
 
     fn channel_count(&self) -> u16 {

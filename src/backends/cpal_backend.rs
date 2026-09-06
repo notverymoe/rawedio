@@ -172,7 +172,7 @@ where
         scratch_buffer.resize(usize::max(buffer.len(), scratch_buffer.len()), 0);
 
         // Process sounds to fill scratch buffer
-        renderer.on_start_of_batch(buffer.len());
+        renderer.on_start_of_batch();
 
         match renderer
             .next_samples_for(&mut scratch_buffer)
