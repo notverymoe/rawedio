@@ -10,12 +10,9 @@ pub mod sounds;
 pub mod utils;
 
 mod error;
-mod sound;
 
 pub use error::RawedioError;
-pub use sound::NextSample;
-pub use sound::NextSampleBuffer;
-pub use sound::Sound;
+pub use sounds::{NextSample, NextSampleBuffer, Sound};
 
 /// Start outputting audio with the default backend, device, and configs.
 ///

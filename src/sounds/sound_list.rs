@@ -1,8 +1,12 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::sound::NextSample;
-use crate::sounds::wrappers::{AddSound, ClearSounds};
-use crate::{NextSampleBuffer, Sound};
+use crate::{
+    sounds::{
+        wrappers::{AddSound, ClearSounds},
+        NextSample,
+    },
+    NextSampleBuffer, RawedioError, Sound,
+};
 
 /// Play Sounds sequentially one after the other.
 ///
@@ -109,10 +113,7 @@ impl Sound for SoundList {
         }
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         let Some(next_sound) = self.sounds.first_mut() else {
             return Ok(NextSampleBuffer::Finished(0));
         };
@@ -149,7 +150,7 @@ impl Sound for SoundList {
         Ok(ret)
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         let Some(next_sound) = self.sounds.first_mut() else {
             return Ok(NextSample::Finished);
         };

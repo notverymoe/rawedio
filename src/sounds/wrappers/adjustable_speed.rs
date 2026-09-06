@@ -1,8 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::Sound;
-
 use super::{SetPaused, SetStopped, SetVolume};
+use crate::{NextSample, NextSampleBuffer, RawedioError, Sound};
 
 /// A sound that can have the playback speed adjusted.
 ///
@@ -23,8 +22,7 @@ pub struct AdjustableSpeed<S: Sound> {
 }
 
 impl<S> AdjustableSpeed<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Wrap `inner` such that its speed can be adjusted.
     pub const fn new(inner: S) -> Self {
@@ -58,8 +56,7 @@ where
 }
 
 impl<S> Sound for AdjustableSpeed<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.inner.channel_count()
@@ -71,21 +68,18 @@ where
         u32::max(1, new_rate)
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         if self.speed_changed {
             self.speed_changed = false;
-            return Ok(crate::NextSampleBuffer::MetadataChanged(0));
+            return Ok(NextSampleBuffer::MetadataChanged(0));
         }
         self.inner.next_samples_for(buffer)
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         if self.speed_changed {
             self.speed_changed = false;
-            return Ok(crate::NextSample::MetadataChanged);
+            return Ok(NextSample::MetadataChanged);
         }
         self.inner.next_sample()
     }
@@ -96,8 +90,7 @@ where
 }
 
 impl<S> SetSpeed for AdjustableSpeed<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn set_speed(&mut self, new: f32) {
         self.speed_changed = true;
@@ -106,8 +99,7 @@ where
 }
 
 impl<S> AdjustableSpeed<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Return the current speed multiplier. 1.0 is the default speed.
     pub const fn speed(&self) -> f32 {
@@ -116,8 +108,7 @@ where
 }
 
 impl<S> SetPaused for AdjustableSpeed<S>
-where
-    S: Sound + SetPaused,
+where S: Sound + SetPaused
 {
     fn set_paused(&mut self, paused: bool) {
         self.inner.set_paused(paused);
@@ -125,8 +116,7 @@ where
 }
 
 impl<S> SetStopped for AdjustableSpeed<S>
-where
-    S: Sound + SetStopped,
+where S: Sound + SetStopped
 {
     fn set_stopped(&mut self) {
         self.inner.set_stopped();
@@ -134,8 +124,7 @@ where
 }
 
 impl<S> SetVolume for AdjustableSpeed<S>
-where
-    S: Sound + SetVolume,
+where S: Sound + SetVolume
 {
     fn set_volume(&mut self, multiplier: f32) {
         self.inner.set_volume(multiplier);

@@ -2,9 +2,8 @@
 
 use std::{assert_matches, f32::consts::TAU, sync::Arc};
 
-use crate::{NextSampleBuffer, Sound};
-
 use super::MemorySound;
+use crate::{NextSample, NextSampleBuffer, RawedioError, Sound};
 
 /// A constant pitch sound of infinite length.
 pub struct SineWave {
@@ -89,7 +88,7 @@ fn find_reset_num(freq: f32, sample_rate: u32) -> u32 {
     best_reset_num - 1
 }
 
-impl crate::Sound for SineWave {
+impl Sound for SineWave {
     fn channel_count(&self) -> u16 {
         1
     }
@@ -98,16 +97,13 @@ impl crate::Sound for SineWave {
         self.sample_rate
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         buffer.fill_with(|| self.advance());
         Ok(NextSampleBuffer::Continue)
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
-        Ok(crate::NextSample::Sample(self.advance()))
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
+        Ok(NextSample::Sample(self.advance()))
     }
 }
 

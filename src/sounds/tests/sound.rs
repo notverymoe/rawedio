@@ -1,7 +1,10 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::utils::test::{adapt_next_sample, adapt_next_samples_for, ConstantValueSound, Sawtooth};
-use crate::{NextSample, RawedioError, Sound};
+use crate::{
+    sounds::{NextSample, Sound},
+    utils::test::{adapt_next_sample, adapt_next_samples_for, ConstantValueSound, Sawtooth},
+    RawedioError,
+};
 
 #[test]
 fn test_constant_value_sound_basic() {

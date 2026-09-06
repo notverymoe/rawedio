@@ -1,8 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::Sound;
-
 use super::{AddSound, ClearSounds, SetPaused, SetSpeed, SetStopped, SetVolume};
+use crate::Sound;
 
 /// Super trait that implements all traits that a wrapper Sound should
 /// transparently pass through if implemented by the inner sound. If you have
@@ -68,7 +67,7 @@ where
     S: Wrapper,
     <S as Wrapper>::Inner: AddSound,
 {
-    fn add(&mut self, sound: Box<dyn crate::Sound>) {
+    fn add(&mut self, sound: Box<dyn Sound>) {
         self.inner_mut().add(sound);
     }
 }

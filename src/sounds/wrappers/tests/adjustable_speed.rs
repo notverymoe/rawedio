@@ -12,7 +12,7 @@ use crate::{
 fn adjust_down() {
     fn run_with(mut next: impl FnMut(&mut dyn Sound) -> Result<NextSample, RawedioError>) {
         let mut first = ConstantValueSound::new(1000).with_adjustable_speed_of(0.5);
-        assert_eq!(next(&mut first).unwrap(), crate::NextSample::Sample(1000));
+        assert_eq!(next(&mut first).unwrap(), NextSample::Sample(1000));
         assert_eq!(first.sample_rate(), 22050);
     }
 
@@ -24,7 +24,7 @@ fn adjust_down() {
 fn adjust_up() {
     fn run_with(mut next: impl FnMut(&mut dyn Sound) -> Result<NextSample, RawedioError>) {
         let mut first = ConstantValueSound::new(1000).with_adjustable_speed_of(5.0);
-        assert_eq!(next(&mut first).unwrap(), crate::NextSample::Sample(1000));
+        assert_eq!(next(&mut first).unwrap(), NextSample::Sample(1000));
         assert_eq!(first.sample_rate(), 44100 * 5);
     }
 
@@ -36,7 +36,7 @@ fn adjust_up() {
 fn test_real_fast() {
     fn run_with(mut next: impl FnMut(&mut dyn Sound) -> Result<NextSample, RawedioError>) {
         let mut first = ConstantValueSound::new(1000).with_adjustable_speed_of(1000.0);
-        assert_eq!(next(&mut first).unwrap(), crate::NextSample::Sample(1000));
+        assert_eq!(next(&mut first).unwrap(), NextSample::Sample(1000));
         assert_eq!(first.sample_rate(), 44100 * 1000);
     }
 
@@ -48,7 +48,7 @@ fn test_real_fast() {
 fn test_max_saturation() {
     fn run_with(mut next: impl FnMut(&mut dyn Sound) -> Result<NextSample, RawedioError>) {
         let mut first = ConstantValueSound::new(1000).with_adjustable_speed_of(1_000_000.0);
-        assert_eq!(next(&mut first).unwrap(), crate::NextSample::Sample(1000));
+        assert_eq!(next(&mut first).unwrap(), NextSample::Sample(1000));
         assert_eq!(first.sample_rate(), u32::MAX);
     }
 
@@ -62,11 +62,8 @@ fn test_min_saturation() {
         let mut first = ConstantValueSound::new(1000).with_adjustable_speed();
         first.set_speed(0.000_000_000_1);
         assert_eq!(first.sample_rate(), 1);
-        assert_eq!(
-            next(&mut first).unwrap(),
-            crate::NextSample::MetadataChanged
-        );
-        assert_eq!(next(&mut first).unwrap(), crate::NextSample::Sample(1000));
+        assert_eq!(next(&mut first).unwrap(), NextSample::MetadataChanged);
+        assert_eq!(next(&mut first).unwrap(), NextSample::Sample(1000));
     }
 
     run_with(adapt_next_sample);
@@ -78,14 +75,11 @@ fn metadata_changed_notification() {
     fn run_with(mut next: impl FnMut(&mut dyn Sound) -> Result<NextSample, RawedioError>) {
         let mut first = ConstantValueSound::new(1000).with_adjustable_speed();
         assert_eq!(first.sample_rate(), DEFAULT_SAMPLE_RATE);
-        assert_eq!(next(&mut first).unwrap(), crate::NextSample::Sample(1000));
+        assert_eq!(next(&mut first).unwrap(), NextSample::Sample(1000));
         first.set_speed(0.50);
         assert_eq!(first.sample_rate(), 22050);
-        assert_eq!(
-            next(&mut first).unwrap(),
-            crate::NextSample::MetadataChanged
-        );
-        assert_eq!(next(&mut first).unwrap(), crate::NextSample::Sample(1000));
+        assert_eq!(next(&mut first).unwrap(), NextSample::MetadataChanged);
+        assert_eq!(next(&mut first).unwrap(), NextSample::Sample(1000));
     }
 
     run_with(adapt_next_sample);

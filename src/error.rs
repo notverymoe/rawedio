@@ -1,7 +1,6 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use std::error::Error;
-use std::io::Error as IOError;
+use std::{error::Error, io::Error as IOError};
 
 /// Rawedio error.
 ///

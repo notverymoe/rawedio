@@ -3,11 +3,12 @@
 //! [`AsyncCompletionNotifier`] and re-export of the tokio [`oneshot`] channel it
 //! uses for convenience.
 
-use super::Wrapper;
-use crate::NextSample;
-use crate::NextSampleBuffer;
-use crate::Sound;
 pub use tokio::sync::oneshot;
+
+use crate::{
+    sounds::{wrappers::Wrapper, NextSample, NextSampleBuffer, Sound},
+    RawedioError,
+};
 
 /// Notify via a [`tokio::sync::oneshot::Receiver`] when the contained Sound has
 /// Finished.
@@ -21,8 +22,7 @@ pub struct AsyncCompletionNotifier<S: Sound> {
 }
 
 impl<S> AsyncCompletionNotifier<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Wrap `inner` so a receiver can be notified when `inner` has `Finished`.
     pub fn new(inner: S) -> (Self, oneshot::Receiver<()>) {
@@ -37,8 +37,7 @@ where
 }
 
 impl<S> Sound for AsyncCompletionNotifier<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.inner.channel_count()
@@ -48,10 +47,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         let next = self.inner.next_samples_for(buffer)?;
         if let NextSampleBuffer::Finished(_) = next {
             if let Some(sender) = self.sender.take() {
@@ -63,7 +59,7 @@ where
         Ok(next)
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         let next = self.inner.next_sample()?;
         if let NextSample::Finished = next {
             if let Some(sender) = self.sender.take() {
@@ -81,8 +77,7 @@ where
 }
 
 impl<S> Wrapper for AsyncCompletionNotifier<S>
-where
-    S: Sound,
+where S: Sound
 {
     type Inner = S;
 

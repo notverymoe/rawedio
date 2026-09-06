@@ -2,9 +2,8 @@
 
 use std::time::Duration;
 
-use crate::Sound;
-
 use super::Wrapper;
+use crate::{NextSample, RawedioError, Sound};
 
 /// Play the  first part of an inner Sound measured in seconds then stop even
 /// if the inner sound still has samples remaining. Finishes early if the inner
@@ -19,8 +18,7 @@ pub struct FinishAfter<S: Sound> {
 }
 
 impl<S> FinishAfter<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Only play the first `duration` of inner before finishing.
     pub fn new(inner: S, duration: Duration) -> Self {
@@ -53,8 +51,7 @@ where
 }
 
 impl<S> Sound for FinishAfter<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.inner.channel_count()
@@ -66,16 +63,16 @@ where
 
     // TODO OPT `next_samples_for`
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         if self.samples_remaining == 0 {
-            return Ok(crate::NextSample::Finished);
+            return Ok(NextSample::Finished);
         }
         let next = self.inner.next_sample()?;
         match next {
-            crate::NextSample::Sample(_) => {
+            NextSample::Sample(_) => {
                 self.samples_remaining -= 1;
             }
-            crate::NextSample::MetadataChanged => {
+            NextSample::MetadataChanged => {
                 let total_old_samples = num_samples(
                     self.total_duration,
                     self.current_channel_count,
@@ -95,8 +92,8 @@ where
                     self.current_sample_rate,
                 );
             }
-            crate::NextSample::Paused => (),
-            crate::NextSample::Finished => (),
+            NextSample::Paused => (),
+            NextSample::Finished => (),
         }
         Ok(next)
     }

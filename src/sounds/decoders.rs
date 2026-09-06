@@ -17,4 +17,4 @@ pub use qoaudio::DecodeError as QoaDecodeError;
 pub use symphonia::SymphoniaDecoder;
 
 #[cfg(test)]
-mod test;
+mod tests;

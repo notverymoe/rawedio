@@ -1,8 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::{NextSample, NextSampleBuffer, Sound};
-
 use super::Wrapper;
+use crate::{NextSample, NextSampleBuffer, RawedioError, Sound};
 
 // Forked from https://github.com/RustAudio/rodio/blob/d5b9ae3467dab4316ee77b260a5b7432f74866b0/src/conversions/sample_rate.rs
 
@@ -46,8 +45,7 @@ pub struct SampleRateConverter<S: Sound> {
 }
 
 impl<S> SampleRateConverter<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Create a new `SampleRateConverter` with an output sample rate of
     /// `to_rate`.
@@ -106,7 +104,7 @@ where
         self.output_frame = Vec::with_capacity(channel_count as usize - 1);
     }
 
-    fn fill_frames(&mut self) -> Result<bool, crate::RawedioError> {
+    fn fill_frames(&mut self) -> Result<bool, RawedioError> {
         let (first_samples, next_samples) = if self.from_rate_scaled == self.to_rate_scaled {
             (Vec::new(), Vec::new())
         } else {
@@ -143,7 +141,7 @@ where
         Ok(true)
     }
 
-    fn next_input_frame(&mut self) -> Result<bool, crate::RawedioError> {
+    fn next_input_frame(&mut self) -> Result<bool, RawedioError> {
         self.current_frame_pos_in_chunk += 1;
 
         std::mem::swap(&mut self.current_frame, &mut self.next_frame);
@@ -180,8 +178,7 @@ where
 }
 
 impl<S> Sound for SampleRateConverter<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.inner.channel_count()
@@ -193,7 +190,7 @@ where
 
     // TODO OPT `next_samples_for`
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         if self.channel_count_changed {
             self.channel_count_changed = false;
             return Ok(NextSample::MetadataChanged);

@@ -1,8 +1,10 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
+use std::error::Error;
+
 use rawedio::{NextSample, Sound};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let Some(file_path) = args() else {
         eprintln!("usage: FILE_PATH");
         std::process::exit(2);

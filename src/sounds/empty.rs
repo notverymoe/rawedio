@@ -1,5 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
+use crate::{NextSample, NextSampleBuffer, RawedioError, Sound};
+
 /// A Sound that immediately and always returns Finished
 pub struct Empty {
     channel_count: u16,
@@ -17,7 +19,7 @@ impl Empty {
     }
 }
 
-impl crate::Sound for Empty {
+impl Sound for Empty {
     fn channel_count(&self) -> u16 {
         self.channel_count
     }
@@ -26,14 +28,11 @@ impl crate::Sound for Empty {
         self.sample_rate
     }
 
-    fn next_samples_for(
-        &mut self,
-        _buffer: &mut [i16],
-    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
-        Ok(crate::NextSampleBuffer::Finished(0))
+    fn next_samples_for(&mut self, _buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
+        Ok(NextSampleBuffer::Finished(0))
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
-        Ok(crate::NextSample::Finished)
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
+        Ok(NextSample::Finished)
     }
 }

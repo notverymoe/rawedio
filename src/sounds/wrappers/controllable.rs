@@ -1,15 +1,12 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::sounds::wrappers::SetPaused;
-use crate::sounds::wrappers::SetVolume;
-use crate::Sound;
 use std::sync::mpsc;
 
-use super::stoppable::SetStopped;
-use super::AddSound;
-use super::ClearSounds;
-use super::SetSpeed;
-use super::Wrapper;
+use super::{stoppable::SetStopped, AddSound, ClearSounds, SetSpeed, Wrapper};
+use crate::{
+    sounds::wrappers::{SetPaused, SetVolume},
+    NextSample, NextSampleBuffer, RawedioError, Sound,
+};
 
 /// Wrap a Sound so that it can be controlled via a [Controller] even after it
 /// has been added to the Manager and/or started playing.
@@ -26,8 +23,7 @@ pub struct Controllable<S: Sound> {
 }
 
 impl<S> Controllable<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Wrap `inner` so it can be controlled.
     pub fn new(inner: S) -> (Self, Controller<S>) {
@@ -50,8 +46,7 @@ where
 }
 
 impl<S> Sound for Controllable<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.inner.channel_count()
@@ -61,46 +56,41 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         let next = self.inner.next_samples_for(buffer)?;
         match next {
-            crate::NextSampleBuffer::Continue
-            | crate::NextSampleBuffer::MetadataChanged(_)
-            | crate::NextSampleBuffer::Paused(_) => Ok(next),
+            NextSampleBuffer::Continue
+            | NextSampleBuffer::MetadataChanged(_)
+            | NextSampleBuffer::Paused(_) => Ok(next),
             // Since this is controllable we might add another sound later.
             // Ideally we would do this only if the inner sound can have sounds
             // added to it but I don't think we can branch on S: AddSound here.
             // We could add a Sound::is_addable but lets avoid that until we see
             // a reason why it is necessary.
-            crate::NextSampleBuffer::Finished(count) => {
+            NextSampleBuffer::Finished(count) => {
                 if self.finished {
-                    Ok(crate::NextSampleBuffer::Finished(count))
+                    Ok(NextSampleBuffer::Finished(count))
                 } else {
-                    Ok(crate::NextSampleBuffer::Paused(count))
+                    Ok(NextSampleBuffer::Paused(count))
                 }
             }
         }
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         let next = self.inner.next_sample()?;
         match next {
-            crate::NextSample::Sample(_)
-            | crate::NextSample::MetadataChanged
-            | crate::NextSample::Paused => Ok(next),
+            NextSample::Sample(_) | NextSample::MetadataChanged | NextSample::Paused => Ok(next),
             // Since this is controllable we might add another sound later.
             // Ideally we would do this only if the inner sound can have sounds
             // added to it but I don't think we can branch on S: AddSound here.
             // We could add a Sound::is_addable but lets avoid that until we see
             // a reason why it is necessary.
-            crate::NextSample::Finished => {
+            NextSample::Finished => {
                 if self.finished {
-                    Ok(crate::NextSample::Finished)
+                    Ok(NextSample::Finished)
                 } else {
-                    Ok(crate::NextSample::Paused)
+                    Ok(NextSample::Paused)
                 }
             }
         }
@@ -122,8 +112,7 @@ where
 }
 
 impl<S> Wrapper for Controllable<S>
-where
-    S: Sound,
+where S: Sound
 {
     type Inner = S;
 
@@ -149,8 +138,7 @@ pub struct Controller<S: Sound> {
 }
 
 impl<S> Clone for Controller<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn clone(&self) -> Self {
         Self {
@@ -160,8 +148,7 @@ where
 }
 
 impl<S> Controller<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Send a custom command to the associated Controllable.
     ///
@@ -178,8 +165,7 @@ where
 }
 
 impl<S> Controller<S>
-where
-    S: Sound + AddSound,
+where S: Sound + AddSound
 {
     /// Add `sound` to the sound container.
     pub fn add(&mut self, sound: Box<dyn Sound>) {
@@ -188,8 +174,7 @@ where
 }
 
 impl<S> Controller<S>
-where
-    S: Sound + ClearSounds,
+where S: Sound + ClearSounds
 {
     /// Clear all sounds currently playing or scheduled to play.
     pub fn clear(&mut self) {
@@ -198,8 +183,7 @@ where
 }
 
 impl<S> Controller<S>
-where
-    S: Sound + SetPaused,
+where S: Sound + SetPaused
 {
     /// Pause or unpause the controllable sound.
     pub fn set_paused(&mut self, paused: bool) {
@@ -208,8 +192,7 @@ where
 }
 
 impl<S> Controller<S>
-where
-    S: Sound + SetStopped,
+where S: Sound + SetStopped
 {
     /// Stop the controllable sound (i.e. it will return Finished).
     pub fn set_stopped(&mut self) {
@@ -218,8 +201,7 @@ where
 }
 
 impl<S> Controller<S>
-where
-    S: Sound + SetSpeed,
+where S: Sound + SetSpeed
 {
     /// Set the playback speed of the controllable sound.
     pub fn set_speed(&mut self, speed: f32) {
@@ -228,8 +210,7 @@ where
 }
 
 impl<S> Controller<S>
-where
-    S: Sound + SetVolume,
+where S: Sound + SetVolume
 {
     /// Set the volume of the controllable sound.
     pub fn set_volume(&mut self, volume: f32) {

@@ -1,8 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::{sounds::wrappers::SetPaused, Sound};
-
 use super::{SetSpeed, SetVolume};
+use crate::{sounds::wrappers::SetPaused, NextSample, NextSampleBuffer, RawedioError, Sound};
 
 /// A Sound which can be stopped.
 pub trait SetStopped {
@@ -18,8 +17,7 @@ pub struct Stoppable<S: Sound> {
 }
 
 impl<S> Stoppable<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Wrap `inner` and allow it to be stopped via
     /// [`set_stopped`][SetStopped::set_stopped].
@@ -48,8 +46,7 @@ where
 }
 
 impl<S> Sound for Stoppable<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.inner.channel_count()
@@ -59,19 +56,16 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         if self.stopped {
-            return Ok(crate::NextSampleBuffer::Finished(0));
+            return Ok(NextSampleBuffer::Finished(0));
         }
         self.inner.next_samples_for(buffer)
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         if self.stopped {
-            return Ok(crate::NextSample::Finished);
+            return Ok(NextSample::Finished);
         }
         self.inner.next_sample()
     }
@@ -82,8 +76,7 @@ where
 }
 
 impl<S> Stoppable<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Return if the Sound is stopped.
     pub const fn stopped(&self) -> bool {
@@ -92,8 +85,7 @@ where
 }
 
 impl<S> SetStopped for Stoppable<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn set_stopped(&mut self) {
         self.stopped = true;
@@ -101,8 +93,7 @@ where
 }
 
 impl<S> SetPaused for Stoppable<S>
-where
-    S: Sound + SetPaused,
+where S: Sound + SetPaused
 {
     fn set_paused(&mut self, paused: bool) {
         self.inner.set_paused(paused);
@@ -110,8 +101,7 @@ where
 }
 
 impl<S> SetVolume for Stoppable<S>
-where
-    S: Sound + SetVolume,
+where S: Sound + SetVolume
 {
     fn set_volume(&mut self, multiplier: f32) {
         self.inner.set_volume(multiplier);
@@ -119,8 +109,7 @@ where
 }
 
 impl<S> SetSpeed for Stoppable<S>
-where
-    S: Sound + SetSpeed,
+where S: Sound + SetSpeed
 {
     fn set_speed(&mut self, multiplier: f32) {
         self.inner.set_speed(multiplier);

@@ -1,14 +1,17 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::sound::NextSample;
-use crate::Sound;
-use qoaudio::{DecodeError, QoaDecoder as RawDecoder, QoaItem};
 use std::io::Read;
+
+use qoaudio::{DecodeError, QoaDecoder as RawDecoder, QoaItem};
+
+use crate::{
+    sounds::{NextSample, Sound},
+    RawedioError,
+};
 
 /// Decoder for the [QOA](https://qoaformat.org/) format.
 pub struct QoaDecoder<R>
-where
-    R: Read + Send,
+where R: Read + Send
 {
     raw_decoder: RawDecoder<R>,
     sample_rate: u32,
@@ -16,8 +19,7 @@ where
 }
 
 impl<R> QoaDecoder<R>
-where
-    R: Read + Send,
+where R: Read + Send
 {
     /// Attempts to decode the data as QOA audio.
     pub fn new(data: R) -> Result<QoaDecoder<R>, DecodeError> {
@@ -46,8 +48,7 @@ where
 }
 
 impl<R> Sound for QoaDecoder<R>
-where
-    R: Read + Send,
+where R: Read + Send
 {
     fn channel_count(&self) -> u16 {
         self.channel_count
@@ -59,7 +60,7 @@ where
 
     // TODO PRI OPT `next_samples_for`
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         loop {
             let Some(next_sample) = self.raw_decoder.next() else {
                 return Ok(NextSample::Finished);
@@ -84,14 +85,14 @@ where
     }
 }
 
-impl From<DecodeError> for crate::RawedioError {
+impl From<DecodeError> for RawedioError {
     fn from(value: DecodeError) -> Self {
         match value {
             DecodeError::IoError(e) => e.into(),
             DecodeError::NotQoaFile
             | DecodeError::NoSamples
             | DecodeError::InvalidFrameHeader
-            | DecodeError::IncompatibleFrame => crate::RawedioError::FormatError(Box::new(value)),
+            | DecodeError::IncompatibleFrame => RawedioError::FormatError(Box::new(value)),
         }
     }
 }

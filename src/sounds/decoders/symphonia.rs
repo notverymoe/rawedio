@@ -1,19 +1,24 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::NextSample;
-use crate::Sound;
-use symphonia::core::audio::conv::FromSample;
-use symphonia::core::audio::sample::Sample;
-use symphonia::core::audio::{Audio, AudioBuffer, Channels, GenericAudioBufferRef};
-use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions, CODEC_ID_NULL_AUDIO};
-use symphonia::core::codecs::CodecParameters;
-use symphonia::core::common::Limit;
-use symphonia::core::errors::Error;
-use symphonia::core::formats::probe::Hint;
-use symphonia::core::formats::{FormatOptions, FormatReader};
-use symphonia::core::io::MediaSourceStreamOptions;
-use symphonia::core::io::{MediaSource, MediaSourceStream};
-use symphonia::core::meta::MetadataOptions;
+use symphonia::core::{
+    audio::{
+        conv::FromSample, sample::Sample, Audio, AudioBuffer, Channels, GenericAudioBufferRef,
+    },
+    codecs::{
+        audio::{AudioDecoder, AudioDecoderOptions, CODEC_ID_NULL_AUDIO},
+        CodecParameters,
+    },
+    common::Limit,
+    errors::Error,
+    formats::{probe::Hint, FormatOptions, FormatReader},
+    io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions},
+    meta::MetadataOptions,
+};
+
+use crate::{
+    sounds::{NextSample, Sound},
+    RawedioError,
+};
 
 /// Decode formats using the Symphonia crate decoders.
 pub struct SymphoniaDecoder {
@@ -52,12 +57,8 @@ impl SymphoniaDecoder {
         let track = format
             .tracks()
             .iter()
-            .find(|t| {
-                matches!(&t.codec_params, Some(CodecParameters::Audio(p)) if p.codec != CODEC_ID_NULL_AUDIO)
-            })
-            .ok_or(Error::Unsupported(
-                "No track with a supported codec was found",
-            ))?;
+            .find(|t| matches!(&t.codec_params, Some(CodecParameters::Audio(p)) if p.codec != CODEC_ID_NULL_AUDIO))
+            .ok_or(Error::Unsupported("No track with a supported codec was found"))?;
         let track_id = track.id;
         let audio_params = match &track.codec_params {
             Some(CodecParameters::Audio(p)) => p.clone(),
@@ -94,7 +95,7 @@ impl Sound for SymphoniaDecoder {
 
     // TODO PRI OPT `next_samples_for`
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         if self.next_channel_idx >= self.channels.count().try_into().unwrap() {
             self.next_channel_idx = 0;
             self.next_sample_idx += 1;
@@ -190,11 +191,11 @@ where
     FromSample::from_sample(buffer.plane(channel_idx as usize).unwrap()[sample_idx])
 }
 
-impl From<Error> for crate::RawedioError {
+impl From<Error> for RawedioError {
     fn from(value: Error) -> Self {
         match value {
             Error::IoError(e) => e.into(),
-            e => crate::RawedioError::FormatError(Box::new(e)),
+            e => RawedioError::FormatError(Box::new(e)),
         }
     }
 }

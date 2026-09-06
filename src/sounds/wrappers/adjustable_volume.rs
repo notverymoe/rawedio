@@ -1,8 +1,14 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::{NextSampleBuffer, Sound};
-
 use super::{SetPaused, SetSpeed, SetStopped};
+use crate::{
+    sounds::{
+        wrappers::{AsyncCompletionNotifier, CompletionNotifier},
+        MemorySound,
+    },
+    utils::{convert_num_samples, duration_to_num_samples},
+    NextSample, NextSampleBuffer, RawedioError, Sound,
+};
 
 /// A sound multiplied by a linear gain adjustment.
 pub trait SetVolume {
@@ -23,8 +29,7 @@ pub struct AdjustableVolume<S: Sound> {
 }
 
 impl<S> AdjustableVolume<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Wrap `inner` such that its gain can be adjusted.
     ///
@@ -66,8 +71,7 @@ where
 }
 
 impl<S> Sound for AdjustableVolume<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.inner.channel_count()
@@ -77,10 +81,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         let next = self.inner.next_samples_for(buffer)?;
         let count = match next {
             NextSampleBuffer::Continue => buffer.len(),
@@ -94,18 +95,16 @@ where
         Ok(next)
     }
 
-    fn next_sample(&mut self) -> Result<crate::NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         let next = self.inner.next_sample()?;
         Ok(match next {
-            crate::NextSample::Sample(s) => {
+            NextSample::Sample(s) => {
                 // Since Rust 1.45, the `as` keyword performs a *saturating cast*
                 // when casting from float to int.
                 let adjusted = (s as f32 * self.volume_adjustment) as i16;
-                crate::NextSample::Sample(adjusted)
+                NextSample::Sample(adjusted)
             }
-            crate::NextSample::MetadataChanged
-            | crate::NextSample::Paused
-            | crate::NextSample::Finished => next,
+            NextSample::MetadataChanged | NextSample::Paused | NextSample::Finished => next,
         })
     }
 
@@ -113,133 +112,99 @@ where
         self.inner.on_start_of_batch(count);
     }
 
-    fn into_memory_sound(self) -> Result<crate::sounds::MemorySound, crate::RawedioError>
-    where
-        Self: Sized,
-    {
-        crate::sounds::MemorySound::from_sound(self)
+    fn into_memory_sound(self) -> Result<MemorySound, RawedioError>
+    where Self: Sized {
+        MemorySound::from_sound(self)
     }
 
-    fn loop_from_memory(self) -> Result<crate::sounds::MemorySound, crate::RawedioError>
-    where
-        Self: Sized,
-    {
-        let mut to_return = crate::sounds::MemorySound::from_sound(self)?;
+    fn loop_from_memory(self) -> Result<MemorySound, RawedioError>
+    where Self: Sized {
+        let mut to_return = MemorySound::from_sound(self)?;
         to_return.set_looping(true);
         Ok(to_return)
     }
 
     fn controllable(self) -> (super::Controllable<Self>, super::Controller<Self>)
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         super::Controllable::new(self)
     }
 
     fn with_async_completion_notifier(
         self,
     ) -> (
-        crate::sounds::wrappers::AsyncCompletionNotifier<Self>,
+        AsyncCompletionNotifier<Self>,
         tokio::sync::oneshot::Receiver<()>,
     )
-    where
-        Self: Sized,
-    {
-        crate::sounds::wrappers::AsyncCompletionNotifier::new(self)
+    where Self: Sized {
+        AsyncCompletionNotifier::new(self)
     }
 
-    fn with_completion_notifier(
-        self,
-    ) -> (
-        crate::sounds::wrappers::CompletionNotifier<Self>,
-        std::sync::mpsc::Receiver<()>,
-    )
-    where
-        Self: Sized,
-    {
-        crate::sounds::wrappers::CompletionNotifier::new(self)
+    fn with_completion_notifier(self) -> (CompletionNotifier<Self>, std::sync::mpsc::Receiver<()>)
+    where Self: Sized {
+        CompletionNotifier::new(self)
     }
 
     fn with_adjustable_volume(self) -> AdjustableVolume<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         AdjustableVolume::new(self)
     }
 
     fn with_adjustable_volume_of(self, volume_adjustment: f32) -> AdjustableVolume<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         AdjustableVolume::new_with_volume(self, volume_adjustment)
     }
 
     fn with_adjustable_speed(self) -> super::AdjustableSpeed<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         super::AdjustableSpeed::new(self)
     }
 
     fn with_adjustable_speed_of(self, speed_adjustment: f32) -> super::AdjustableSpeed<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         super::AdjustableSpeed::new_with_speed(self, speed_adjustment)
     }
 
     fn pausable(self) -> super::Pausable<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         super::Pausable::new(self)
     }
 
     fn paused(self) -> super::Pausable<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         let mut to_return = super::Pausable::new(self);
         to_return.set_paused(true);
         to_return
     }
 
     fn stoppable(self) -> super::Stoppable<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         super::Stoppable::new(self)
     }
 
     fn finish_after(self, duration: std::time::Duration) -> super::FinishAfter<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         super::FinishAfter::new(self, duration)
     }
 
-    fn skip(&mut self, duration: std::time::Duration) -> Result<bool, crate::RawedioError> {
+    fn skip(&mut self, duration: std::time::Duration) -> Result<bool, RawedioError> {
         let mut current_channel_count = self.channel_count();
         let mut current_sample_rate = self.sample_rate();
-        let mut num_samples_remaining = crate::utils::duration_to_num_samples(
-            duration,
-            current_channel_count,
-            current_sample_rate,
-        );
+        let mut num_samples_remaining =
+            duration_to_num_samples(duration, current_channel_count, current_sample_rate);
 
         while num_samples_remaining > 0 {
             let next = self.next_sample()?;
             match next {
-                crate::NextSample::Sample(_) => {
+                NextSample::Sample(_) => {
                     num_samples_remaining -= 1;
                 }
-                crate::NextSample::MetadataChanged => {
+                NextSample::MetadataChanged => {
                     let new_channel_count = self.channel_count();
                     let new_sample_rate = self.sample_rate();
                     if new_channel_count != current_channel_count
                         || new_sample_rate != current_sample_rate
                     {
-                        num_samples_remaining = crate::utils::convert_num_samples(
+                        num_samples_remaining = convert_num_samples(
                             num_samples_remaining,
                             current_channel_count,
                             current_sample_rate,
@@ -250,8 +215,8 @@ where
                         current_sample_rate = new_sample_rate;
                     }
                 }
-                crate::NextSample::Paused => return Ok(false),
-                crate::NextSample::Finished => return Ok(false),
+                NextSample::Paused => return Ok(false),
+                NextSample::Finished => return Ok(false),
             }
         }
         Ok(true)
@@ -259,8 +224,7 @@ where
 }
 
 impl<S> AdjustableVolume<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Return the current gain multiplier. 1.0 is the default multiplier.
     pub const fn volume(&self) -> f32 {
@@ -269,8 +233,7 @@ where
 }
 
 impl<S> SetVolume for AdjustableVolume<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn set_volume(&mut self, new: f32) {
         self.volume_adjustment = new;
@@ -278,8 +241,7 @@ where
 }
 
 impl<S> SetPaused for AdjustableVolume<S>
-where
-    S: Sound + SetPaused,
+where S: Sound + SetPaused
 {
     fn set_paused(&mut self, paused: bool) {
         self.inner.set_paused(paused);
@@ -287,8 +249,7 @@ where
 }
 
 impl<S> SetStopped for AdjustableVolume<S>
-where
-    S: Sound + SetStopped,
+where S: Sound + SetStopped
 {
     fn set_stopped(&mut self) {
         self.inner.set_stopped();
@@ -296,8 +257,7 @@ where
 }
 
 impl<S> SetSpeed for AdjustableVolume<S>
-where
-    S: Sound + SetSpeed,
+where S: Sound + SetSpeed
 {
     fn set_speed(&mut self, multiplier: f32) {
         self.inner.set_speed(multiplier);

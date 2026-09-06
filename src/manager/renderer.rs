@@ -1,12 +1,13 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::sounds::wrappers::Controllable;
-use crate::sounds::wrappers::Wrapper;
-use crate::sounds::SoundMixer;
-use crate::NextSample;
-use crate::Sound;
-
-use super::backend_source::BackendSource;
+use crate::{
+    manager::backend_source::BackendSource,
+    sounds::{
+        wrappers::{Controllable, Wrapper},
+        NextSample, Sound, SoundMixer,
+    },
+    RawedioError,
+};
 
 /// The default [`BackendSource`]. Renderer is essentially half of
 /// [Manager][crate::manager::Manager].
@@ -49,7 +50,7 @@ impl Sound for Renderer {
     /// the Renderer has been dropped.
     ///
     /// Guaranteed to not return an Error.
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         self.mixer.next_sample()
     }
 

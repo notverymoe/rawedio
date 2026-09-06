@@ -1,8 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
 use super::wrappers::{AddSound, ChannelCountConverter, ClearSounds, SampleRateConverter};
-use crate::sound::NextSample;
-use crate::{NextSampleBuffer, Sound};
+use crate::{sounds::NextSample, NextSampleBuffer, RawedioError, Sound};
 
 type MixedSound = SampleRateConverter<ChannelCountConverter<Box<dyn Sound>>>;
 
@@ -88,10 +87,7 @@ impl Sound for SoundMixer {
 
     /// Guaranteed to not return an Error.
     #[allow(clippy::panic_in_result_fn)]
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         if self.metadata_changed {
             assert_eq!(self.next_output_channel_idx, 0); // TODO debug assert instead? error?
             self.metadata_changed = false;
@@ -181,7 +177,7 @@ impl Sound for SoundMixer {
 
     /// Guaranteed to not return an Error.
     #[allow(clippy::panic_in_result_fn)]
-    fn next_sample(&mut self) -> Result<crate::sound::NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         if self.metadata_changed {
             assert_eq!(self.next_output_channel_idx, 0); // TODO debug assert instead? error?
             self.metadata_changed = false;

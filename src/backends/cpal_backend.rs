@@ -3,18 +3,17 @@
 //! [`CpalBackend`] outputs audio using the [cpal](https://www.docs.rs/cpal)
 //! crate.
 
-use crate::{
-    manager::{BackendSource, Manager, Renderer},
-    Sound,
-};
+use std::{assert_matches, error::Error};
+
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    Error as CpalError, ErrorKind, FromSample, SizedSample,
+    BufferSize as CpalBufferSize, Error as CpalError, ErrorKind, FromSample, SizedSample,
 };
-use std::assert_matches;
-use std::error::Error;
 
-pub use cpal::BufferSize as CpalBufferSize;
+use crate::{
+    manager::{BackendSource, Manager, Renderer},
+    NextSample, NextSampleBuffer, Sound,
+};
 
 /// A backend that uses [cpal](https://www.docs.rs/cpal) to output to devices.
 ///
@@ -106,14 +105,12 @@ impl CpalBackend {
     /// Cpal stream errors will be reported by calling `error_callback`.
     #[allow(clippy::panic_in_result_fn)]
     pub fn start<E>(&mut self, error_callback: E) -> Result<Manager, CpalBackendError>
-    where
-        E: FnMut(CpalError) + Send + 'static,
-    {
+    where E: FnMut(CpalError) + Send + 'static {
         let (manager, mut renderer) = Manager::new();
         renderer.set_output_channel_count_and_sample_rate(self.channel_count, self.sample_rate);
         assert_matches!(
             renderer.next_sample(),
-            Ok(crate::NextSample::MetadataChanged),
+            Ok(NextSample::MetadataChanged),
             "expected MetadataChanged event"
         );
 
@@ -181,14 +178,13 @@ where
             .next_samples_for(&mut scratch_buffer)
             .expect("renderer should never return an Error")
         {
-            crate::NextSampleBuffer::Continue => {
+            NextSampleBuffer::Continue => {
                 // Buffer filled, excellent
             }
-            crate::NextSampleBuffer::MetadataChanged(_samples) => {
+            NextSampleBuffer::MetadataChanged(_samples) => {
                 unreachable!("we never change metadata mid-batch")
             }
-            crate::NextSampleBuffer::Paused(samples)
-            | crate::NextSampleBuffer::Finished(samples) => {
+            NextSampleBuffer::Paused(samples) | NextSampleBuffer::Finished(samples) => {
                 scratch_buffer[samples..].fill(0);
                 // TODO: implement Finished/Paused
             }

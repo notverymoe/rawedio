@@ -50,16 +50,16 @@ pub mod test {
 
     //! Common utilities for tests.
 
-    use crate::{NextSample, NextSampleBuffer, Sound};
+    use crate::{NextSample, NextSampleBuffer, RawedioError, Sound};
 
     pub const DEFAULT_SAMPLE_RATE: u32 = 44100;
     pub const DEFAULT_CHANNEL_COUNT: u16 = 2;
 
-    pub fn adapt_next_sample(s: &mut dyn Sound) -> Result<NextSample, crate::RawedioError> {
+    pub fn adapt_next_sample(s: &mut dyn Sound) -> Result<NextSample, RawedioError> {
         s.next_sample()
     }
 
-    pub fn adapt_next_samples_for(s: &mut dyn Sound) -> Result<NextSample, crate::RawedioError> {
+    pub fn adapt_next_samples_for(s: &mut dyn Sound) -> Result<NextSample, RawedioError> {
         let mut scratch = [0];
         match s.next_samples_for(&mut scratch) {
             Ok(NextSampleBuffer::Continue) => Ok(NextSample::Sample(scratch[0])),
@@ -120,7 +120,7 @@ pub mod test {
         fn next_samples_for(
             &mut self,
             buffer: &mut [i16],
-        ) -> Result<NextSampleBuffer, crate::RawedioError> {
+        ) -> Result<NextSampleBuffer, RawedioError> {
             if self.metadata_changed {
                 self.metadata_changed = false;
                 return Ok(NextSampleBuffer::MetadataChanged(0));
@@ -129,7 +129,7 @@ pub mod test {
             Ok(NextSampleBuffer::Continue)
         }
 
-        fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+        fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
             if self.metadata_changed {
                 self.metadata_changed = false;
                 return Ok(NextSample::MetadataChanged);
@@ -183,7 +183,7 @@ pub mod test {
         fn next_samples_for(
             &mut self,
             buffer: &mut [i16],
-        ) -> Result<NextSampleBuffer, crate::RawedioError> {
+        ) -> Result<NextSampleBuffer, RawedioError> {
             for dst in buffer {
                 *dst = self.value;
                 self.channel_idx += 1;
@@ -195,7 +195,7 @@ pub mod test {
             Ok(NextSampleBuffer::Continue)
         }
 
-        fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+        fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
             let to_return = NextSample::Sample(self.value);
             self.channel_idx += 1;
             if self.channel_idx == self.channel_count {

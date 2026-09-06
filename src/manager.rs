@@ -4,12 +4,16 @@
 mod backend_source;
 mod renderer;
 
-use crate::sounds::wrappers::Controllable;
-use crate::sounds::wrappers::Controller;
-use crate::sounds::SoundMixer;
-use crate::Sound;
 pub use backend_source::BackendSource;
 pub use renderer::Renderer;
+
+use crate::{
+    sounds::{
+        wrappers::{Controllable, Controller},
+        SoundMixer,
+    },
+    Sound,
+};
 
 /// A Manager can play sounds by rendering sounds on a [`Renderer`] for a
 /// backend.

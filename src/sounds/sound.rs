@@ -5,19 +5,18 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "async")]
+use crate::sounds::wrappers::AsyncCompletionNotifier;
 use crate::{
     sounds::{
         wrappers::{
-            AdjustableSpeed, AdjustableVolume, Controllable, Controller, FinishAfter, Pausable,
-            SetPaused, Stoppable,
+            AdjustableSpeed, AdjustableVolume, CompletionNotifier, Controllable, Controller,
+            FinishAfter, Pausable, SetPaused, Stoppable,
         },
         MemorySound,
     },
-    utils,
+    utils, RawedioError,
 };
-
-#[cfg(test)]
-mod tests;
 
 /// A provider of audio samples.
 ///
@@ -45,10 +44,7 @@ pub trait Sound: Send {
     /// Has default sample-by-sample implementation, but
     /// impl to provide faster approaches specific to your
     /// sound.
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         for (i, dst) in buffer.iter_mut().enumerate() {
             match self.next_sample() {
                 Ok(NextSample::Sample(s)) => *dst = s,
@@ -79,7 +75,7 @@ pub trait Sound: Send {
     /// which errors are recoverable if any. Most consumers will either pass the
     /// error up or log the error and stop playing the sound (e.g. `SoundMixer`
     /// and `SoundList`).
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError>;
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError>;
 
     /// Called whenever a new batch of audio samples is requested by the
     /// backend, where `count` is the number of samples in the batch.
@@ -99,7 +95,7 @@ pub trait Sound: Send {
     /// will be returned and any previously collected samples are lost.
     /// `Err(Ok(NextSample::Sample))` will never be returned. If an error is
     /// encountered `Err(Err(error::Error))` is returned.
-    fn next_frame(&mut self) -> Result<Vec<i16>, Result<NextSampleBuffer, crate::RawedioError>> {
+    fn next_frame(&mut self) -> Result<Vec<i16>, Result<NextSampleBuffer, RawedioError>> {
         let mut samples = Vec::with_capacity(self.channel_count() as usize);
         self.append_next_frame_to(&mut samples)?;
         Ok(samples)
@@ -111,7 +107,7 @@ pub trait Sound: Send {
     fn append_next_frame_to(
         &mut self,
         samples: &mut Vec<i16>,
-    ) -> Result<(), Result<NextSampleBuffer, crate::RawedioError>> {
+    ) -> Result<(), Result<NextSampleBuffer, RawedioError>> {
         let from = samples.len();
         samples.resize(from + self.channel_count() as usize, 0);
 
@@ -132,10 +128,8 @@ pub trait Sound: Send {
 
     /// Read the entire sound into memory. `MemorySound` can be cloned for
     /// efficient reuse. See [`MemorySound::from_sound`].
-    fn into_memory_sound(self) -> Result<MemorySound, crate::RawedioError>
-    where
-        Self: Sized,
-    {
+    fn into_memory_sound(self) -> Result<MemorySound, RawedioError>
+    where Self: Sized {
         MemorySound::from_sound(self)
     }
 
@@ -143,10 +137,8 @@ pub trait Sound: Send {
     ///
     /// If you do not want to read the entire sound into memory see
     /// [`SoundsFromFn`][crate::sounds::SoundsFromFn] as an alternative.
-    fn loop_from_memory(self) -> Result<MemorySound, crate::RawedioError>
-    where
-        Self: Sized,
-    {
+    fn loop_from_memory(self) -> Result<MemorySound, RawedioError>
+    where Self: Sized {
         let mut to_return = MemorySound::from_sound(self)?;
         to_return.set_looping(true);
         Ok(to_return)
@@ -157,9 +149,7 @@ pub trait Sound: Send {
     ///
     /// What can be controlled depends on the Sound type (e.g. `set_volume`).
     fn controllable(self) -> (Controllable<Self>, Controller<Self>)
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         Controllable::new(self)
     }
 
@@ -169,43 +159,30 @@ pub trait Sound: Send {
     fn with_async_completion_notifier(
         self,
     ) -> (
-        crate::sounds::wrappers::AsyncCompletionNotifier<Self>,
+        AsyncCompletionNotifier<Self>,
         tokio::sync::oneshot::Receiver<()>,
     )
-    where
-        Self: Sized,
-    {
-        crate::sounds::wrappers::AsyncCompletionNotifier::new(self)
+    where Self: Sized {
+        AsyncCompletionNotifier::new(self)
     }
 
     /// Get notified via a [`std::sync::mpsc::Receiver`] when this sound
     /// has Finished.
-    fn with_completion_notifier(
-        self,
-    ) -> (
-        crate::sounds::wrappers::CompletionNotifier<Self>,
-        std::sync::mpsc::Receiver<()>,
-    )
-    where
-        Self: Sized,
-    {
-        crate::sounds::wrappers::CompletionNotifier::new(self)
+    fn with_completion_notifier(self) -> (CompletionNotifier<Self>, std::sync::mpsc::Receiver<()>)
+    where Self: Sized {
+        CompletionNotifier::new(self)
     }
 
     /// Allow the volume of the sound to be adjustable with `set_volume`.
     fn with_adjustable_volume(self) -> AdjustableVolume<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         AdjustableVolume::new(self)
     }
 
     /// Allow the volume of the sound to be adjustable with `set_volume` and set
     /// the initial volume adjustment.
     fn with_adjustable_volume_of(self, volume_adjustment: f32) -> AdjustableVolume<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         AdjustableVolume::new_with_volume(self, volume_adjustment)
     }
 
@@ -213,9 +190,7 @@ pub trait Sound: Send {
     ///
     /// This adjusts both speed and pitch.
     fn with_adjustable_speed(self) -> AdjustableSpeed<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         AdjustableSpeed::new(self)
     }
 
@@ -224,25 +199,19 @@ pub trait Sound: Send {
     ///
     /// This adjusts both speed and pitch.
     fn with_adjustable_speed_of(self, speed_adjustment: f32) -> AdjustableSpeed<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         AdjustableSpeed::new_with_speed(self, speed_adjustment)
     }
 
     /// Allow for the sound to be pausable with `set_paused`. Starts unpaused.
     fn pausable(self) -> Pausable<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         Pausable::new(self)
     }
 
     /// Allow for the sound to be pausable with `set_paused`. Starts paused.
     fn paused(self) -> Pausable<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         let mut to_return = Pausable::new(self);
         to_return.set_paused(true);
         to_return
@@ -251,9 +220,7 @@ pub trait Sound: Send {
     /// Allow for the sound to be stoppable with `set_stopped`.
     /// A stopped sound returns `Finished`.
     fn stoppable(self) -> Stoppable<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         Stoppable::new(self)
     }
 
@@ -262,9 +229,7 @@ pub trait Sound: Send {
     ///
     /// See [`FinishAfter`].
     fn finish_after(self, duration: Duration) -> FinishAfter<Self>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         FinishAfter::new(self, duration)
     }
 
@@ -275,7 +240,7 @@ pub trait Sound: Send {
     /// Returns true if all samples were successfully skipped, false if a Paused
     /// or Finished were encountered first. `MetadataChanged` events are handled
     /// correctly but are not returned.
-    fn skip(&mut self, duration: Duration) -> Result<bool, crate::RawedioError> {
+    fn skip(&mut self, duration: Duration) -> Result<bool, RawedioError> {
         let mut current_channel_count = self.channel_count();
         let mut current_sample_rate = self.sample_rate();
         let mut num_samples_remaining =
@@ -372,7 +337,7 @@ impl Sound for Box<dyn Sound> {
         self.deref().sample_rate()
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         self.deref_mut().next_sample()
     }
 }

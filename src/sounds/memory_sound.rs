@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::{NextSample, NextSampleBuffer, Sound};
+use crate::{NextSample, NextSampleBuffer, RawedioError, Sound};
 
 /// A Sound that stores all samples on the heap.
 ///
@@ -45,7 +45,7 @@ impl MemorySound {
     /// its metadata (i.e. channel count or sample rate). If it does an
     /// `IoError` of `ErrorKind::Other` with a `UnsupportedMetadataChangeError` is
     /// returned.
-    pub fn from_sound(mut orig: impl Sound) -> Result<Self, crate::RawedioError> {
+    pub fn from_sound(mut orig: impl Sound) -> Result<Self, RawedioError> {
         let channel_count = orig.channel_count();
         let sample_rate = orig.sample_rate();
 
@@ -54,12 +54,12 @@ impl MemorySound {
         loop {
             let sample = orig.next_sample()?;
             match sample {
-                crate::NextSample::Sample(s) => {
+                NextSample::Sample(s) => {
                     samples.push(s);
                 }
-                crate::NextSample::MetadataChanged => {
+                NextSample::MetadataChanged => {
                     if orig.channel_count() != channel_count || orig.sample_rate() != sample_rate {
-                        return Err(crate::RawedioError::IoError(std::io::Error::other(
+                        return Err(RawedioError::IoError(std::io::Error::other(
                             UnsupportedMetadataChangeError {},
                         )));
                     }
@@ -74,7 +74,7 @@ impl MemorySound {
                         samples.extend(std::iter::repeat_n(0, outputs_to_stay_in_sync));
                     }
                 }
-                crate::NextSample::Paused | crate::NextSample::Finished => break,
+                NextSample::Paused | NextSample::Finished => break,
             }
         }
 
@@ -122,10 +122,7 @@ impl Sound for MemorySound {
         self.sample_rate
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         let mut remaining = buffer.len();
         while remaining > 0 {
             let from = buffer.len() - remaining;
@@ -146,7 +143,7 @@ impl Sound for MemorySound {
         Ok(NextSampleBuffer::Continue)
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         if let Some(sample) = self.samples.get(self.next_sample) {
             self.next_sample += 1;
             Ok(NextSample::Sample(*sample))

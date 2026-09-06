@@ -1,8 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use crate::{NextSample, Sound};
-
 use super::Wrapper;
+use crate::{NextSample, RawedioError, Sound};
 
 /// Convert a Sound to have a specified number of output channels.
 /// For example convert a mono sound to stereo or vice versa.
@@ -19,8 +18,7 @@ enum ConverterType {
 }
 
 impl<S> ChannelCountConverter<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Wrap `inner` such that it will output `to_count` channels.
     pub fn new(inner: S, to_count: u16) -> ChannelCountConverter<S> {
@@ -70,8 +68,7 @@ where
 }
 
 impl<S> Sound for ChannelCountConverter<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.to_count
@@ -83,7 +80,7 @@ where
 
     // TODO OPT `next_samples_for`
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         match &mut self.converter_type {
             ConverterType::PassThrough => {
                 let next = self.inner.next_sample()?;

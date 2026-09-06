@@ -1,10 +1,9 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use super::Wrapper;
-use crate::NextSample;
-use crate::NextSampleBuffer;
-use crate::Sound;
 use std::sync::mpsc;
+
+use super::Wrapper;
+use crate::{NextSample, NextSampleBuffer, RawedioError, Sound};
 
 /// Notify via a [`std::sync::mpsc::Receiver`] when the contained Sound has
 /// Finished. A single message is sent when the sound has completed.
@@ -21,8 +20,7 @@ pub struct CompletionNotifier<S: Sound> {
 }
 
 impl<S> CompletionNotifier<S>
-where
-    S: Sound,
+where S: Sound
 {
     /// Wrap `inner` so a receiver can be notified when `inner` has `Finished`.
     pub fn new(inner: S) -> (Self, mpsc::Receiver<()>) {
@@ -37,8 +35,7 @@ where
 }
 
 impl<S> Sound for CompletionNotifier<S>
-where
-    S: Sound,
+where S: Sound
 {
     fn channel_count(&self) -> u16 {
         self.inner.channel_count()
@@ -48,10 +45,7 @@ where
         self.inner.sample_rate()
     }
 
-    fn next_samples_for(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<crate::NextSampleBuffer, crate::RawedioError> {
+    fn next_samples_for(&mut self, buffer: &mut [i16]) -> Result<NextSampleBuffer, RawedioError> {
         let next = self.inner.next_samples_for(buffer)?;
         if let NextSampleBuffer::Finished(_) = next {
             if let Some(sender) = self.sender.take() {
@@ -63,7 +57,7 @@ where
         Ok(next)
     }
 
-    fn next_sample(&mut self) -> Result<NextSample, crate::RawedioError> {
+    fn next_sample(&mut self) -> Result<NextSample, RawedioError> {
         let next = self.inner.next_sample()?;
         if let NextSample::Finished = next {
             if let Some(sender) = self.sender.take() {
@@ -81,8 +75,7 @@ where
 }
 
 impl<S> Wrapper for CompletionNotifier<S>
-where
-    S: Sound,
+where S: Sound
 {
     type Inner = S;
 
