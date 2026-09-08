@@ -1,6 +1,6 @@
 # Rawedio
 
-## [0.9.0] - 2026-09-03
+## [0.9.0] - 2026-09-08
 
 Setup
 - Update Readme
@@ -14,13 +14,7 @@ Setup
 - Add boilerplate license info
 - Run cargo fmt
 
-Basic Chunk Sampling
-- Implement sampling in chunks where easy
-- Provide fallback chunk sampling
-- Mark TODO chunk sampling locations
-- Update frame-by-frame methods to use chunk method
-- Add field to batching that indicates the size of the batch
-- Update tests
+Migrate to buffered frame sampling
 
 # Awedio
 
