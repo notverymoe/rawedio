@@ -1,23 +1,20 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
 #![warn(missing_docs)]
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![cfg_attr(any(feature = "cpal", not(doctest)), doc = include_str!("../../../README.md"))]
 
-pub mod backends;
-pub mod decoders;
-pub mod manager;
-pub mod operators;
-pub mod sources;
-pub mod utils;
-pub mod wrappers;
+#[allow(unsafe_code)]
+pub mod sync;
 
-mod error;
-mod legacy;
-mod sound;
+mod manager;
+pub use manager::ThreadedManager;
 
-pub use error::RawedioError;
-pub use sound::{NextState, Sound};
+mod renderer;
+pub use renderer::{ThreadedRenderer, ThreadedRendererMixer, ThreadedRendererSound};
+
+#[cfg(feature = "cpal")]
+use rawedio::backends::{CpalBackend, CpalBackendError};
 
 /// Start outputting audio with the default backend, device, and configs.
 ///
@@ -26,11 +23,11 @@ pub use sound::{NextState, Sound};
 /// For more control, create the [`CpalBackend`][backends::CpalBackend]
 /// explicitly.
 #[cfg(feature = "cpal")]
-pub fn start() -> Result<(manager::Manager, backends::CpalBackend), backends::CpalBackendError> {
-    let mut backend = backends::CpalBackend::with_defaults()
-        .ok_or(backends::CpalBackendError::NoDevice)?;
+pub fn start() -> Result<(ThreadedManager, CpalBackend), CpalBackendError> {
+    let mut backend = CpalBackend::with_defaults()
+        .ok_or(CpalBackendError::NoDevice)?;
 
-    let (manager, renderer) = manager::Manager::new();
+    let (manager, renderer) = ThreadedManager::new();
     backend.start_with(
         |error| eprintln!("error with cpal output stream: {error}"),
         renderer

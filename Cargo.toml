@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/core",
+    "crates/threaded",
 ]
 
 [workspace.lints.clippy]

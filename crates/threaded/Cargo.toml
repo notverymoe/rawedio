@@ -1,0 +1,56 @@
+[package]
+name = "rawedio-threaded"
+version = "0.9.0"
+edition = "2024"
+authors = ["Natalie Baker"]
+description = "Provides threaded audio mixing for rawedio."
+license = "MIT OR Apache-2.0"
+keywords = ["audio", "playback"]
+categories = ["multimedia::audio"]
+repository = "https://github.com/notverymoe/rawedio"
+
+[features]
+default = ["rawedio/default", "cpal"]
+async = ["rawedio/async"]
+
+# # Backends # #
+cpal = ["rawedio/cpal"]
+
+# # QOA # #
+qoa = ["rawedio/qoa"]
+
+# # Symphonia # #
+symphonia-basic = ["rawedio/symphonia-basic"]
+
+symphonia-all      = ["rawedio/symphonia-all"]
+symphonia-opt-simd = ["rawedio/symphonia-opt-simd"]
+
+# Demuxers
+symphonia-aiff = ["rawedio/symphonia-aiff"]
+symphonia-caf = ["rawedio/symphonia-caf"]
+symphonia-isomp4 = ["rawedio/symphonia-isomp4"]
+symphonia-mkv = ["rawedio/symphonia-mkv"]
+symphonia-ogg = ["rawedio/symphonia-ogg"]
+symphonia-wav = ["rawedio/symphonia-wav"]
+
+# Codecs
+symphonia-aac = ["rawedio/symphonia-aac"]
+symphonia-adpcm = ["rawedio/symphonia-adpcm"]
+symphonia-alac = ["rawedio/symphonia-alac"]
+symphonia-flac = ["rawedio/symphonia-flac"]
+symphonia-mpa = ["rawedio/symphonia-mpa"]
+symphonia-mp1 = ["rawedio/symphonia-mp1"]
+symphonia-mp2 = ["rawedio/symphonia-mp2"]
+symphonia-mp3 = ["rawedio/symphonia-mp3"]
+symphonia-pcm = ["rawedio/symphonia-pcm"]
+symphonia-vorbis = ["rawedio/symphonia-vorbis"]
+
+[dependencies]
+rawedio = { version = "0.9.0", path = "../core" }
+crossbeam-utils = "0.8.23"
+triomphe = "0.1.16"
+portable-atomic = "1.15.0"
+replace_with = "0.1.8"
+
+[lints]
+workspace = true
