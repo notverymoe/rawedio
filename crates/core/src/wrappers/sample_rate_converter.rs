@@ -41,7 +41,8 @@ pub struct SampleRateConverter<S: Sound> {
     channel_count_changed: bool,
     /// Whether the inner channel last returned Paused or Finished
     inner_paused: bool,
-
+    /// Helper that handles sampling the inner sound sample by sample
+    /// TODO remove when we can process buffer by buffer
     helper: SampleBySample,
 }
 

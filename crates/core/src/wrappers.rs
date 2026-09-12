@@ -35,6 +35,40 @@ pub use wrapper::Wrapper;
 
 use crate::Sound;
 
+/// Id type for Sounds added to a `SoundRegistry`
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct SoundId(u32);
+
+impl SoundId {
+    /// Creates a sound id from its inner value
+    #[must_use]
+    pub const fn from_inner(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// Converts a sound id to its inner value
+    #[must_use]
+    pub const fn into_inner(self) -> u32 {
+        self.0
+    }
+}
+
+impl nohash_hasher::IsEnabled for SoundId {}
+
+/// A Sound which contains other sounds that can be added to it.
+pub trait SoundRegistry {
+    /// Add a sound to be played. When or how the sound is played is
+    /// implementation specific.
+    fn add(&mut self, sound: Box<dyn Sound>) -> SoundId;
+
+    /// Insert a sound with a specific id, replacing the sound
+    /// with that id if it exists.
+    fn insert(&mut self, id: SoundId, sound: Box<dyn Sound>) -> Option<Box<dyn Sound>>;
+
+    /// Remove the sound with the given id.
+    fn remove(&mut self, id: SoundId) -> Option<Box<dyn Sound>>;
+}
+
 /// A Sound which contains other sounds that can be added to it.
 pub trait AddSound {
     /// Add a sound to be played. When or how the sound is played is

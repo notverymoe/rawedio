@@ -2,7 +2,14 @@
 
 //! Misc utilities
 
-use std::time::Duration;
+use std::{hash::BuildHasherDefault, time::Duration};
+
+use indexmap::IndexMap;
+use nohash_hasher::NoHashHasher;
+
+/// Provides a version of the fast-iteration associative `IndexMap` that applies no
+/// hasher to the `std::hash::Hash` result of the key, providing improved lookup speed.
+pub type NoHashIndexMap<K, V> = IndexMap<K, V, BuildHasherDefault<NoHashHasher<K>>>;
 
 /// Convert a number of samples at an old sample rate and channel count to a
 /// new number of samples at a different channel rate or sample count such that
