@@ -2,7 +2,7 @@
 
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
-#![cfg_attr(any(feature = "cpal", not(doctest)), doc = include_str!("../README.md"))]
+#![cfg_attr(any(feature = "cpal", not(doctest)), doc = include_str!("../../../README.md"))]
 
 pub mod backends;
 pub mod decoders;

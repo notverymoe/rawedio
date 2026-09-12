@@ -1,77 +1,10 @@
-[package]
-name = "rawedio"
-version = "0.9.0"
-edition = "2021"
-authors = ["(Fork) Natalie Baker", "(Original) Ben Hansen <bh@benhansen.io>"]
-description = "A low-overhead and adaptable audio playback library, forked."
-license = "MIT OR Apache-2.0"
-keywords = ["audio", "playback"]
-categories = ["multimedia::audio"]
-repository = "https://github.com/notverymoe/rawedio"
-
-[features]
-default = [
-    "cpal",
-    "async",
-    "symphonia-basic",
-    "qoa"
-]
-async = ["dep:tokio"]
-
-# # Backends # #
-cpal = ["dep:cpal"]
-
-# # QOA # #
-qoa = ["dep:qoaudio"]
-
-# # Symphonia # #
-symphonia-basic = [
-    "symphonia", 
-    "symphonia/opt-simd", 
-    "symphonia/ogg", 
-    "symphonia/flac",
-    "symphonia/vorbis",
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
 ]
 
-symphonia-all      = ["symphonia", "symphonia/all"]
-symphonia-opt-simd = ["symphonia", "symphonia/opt-simd"]
-
-# Demuxers
-symphonia-aiff = ["symphonia", "symphonia/aiff"]
-symphonia-caf = ["symphonia", "symphonia/caf"]
-symphonia-isomp4 = ["symphonia", "symphonia/isomp4"]
-symphonia-mkv = ["symphonia", "symphonia/mkv"]
-symphonia-ogg = ["symphonia", "symphonia/ogg"]
-symphonia-wav = ["symphonia", "symphonia/wav"]
-
-# Codecs
-symphonia-aac = ["symphonia", "symphonia/aac"]
-symphonia-adpcm = ["symphonia", "symphonia/adpcm"]
-symphonia-alac = ["symphonia", "symphonia/alac"]
-symphonia-flac = ["symphonia", "symphonia/flac"]
-symphonia-mpa = ["symphonia", "symphonia/mpa"]
-symphonia-mp1 = ["symphonia", "symphonia/mp1"]
-symphonia-mp2 = ["symphonia", "symphonia/mp2"]
-symphonia-mp3 = ["symphonia", "symphonia/mp3"]
-symphonia-pcm = ["symphonia", "symphonia/pcm"]
-symphonia-vorbis = ["symphonia", "symphonia/vorbis"]
-
-[dependencies]
-tokio = { version = "1.26.0", features = ["sync"], optional = true }
-cpal = { version = "0.18", optional = true }
-qoaudio = { version = "0.7", optional = true }
-symphonia = { version = "0.6", optional = true, default-features = false }
-log = "0.4.20"
-
-[dev-dependencies]
-qoaudio = { version = "0.7" }
-symphonia = { version = "0.6", features = ["all", "opt-simd"] }
-
-[[example]]
-name = "play"
-required-features = ["cpal"]
-
-[lints.clippy]
+[workspace.lints.clippy]
 all                            = { level = "warn", priority = -1 }
 pedantic                       = { level = "warn", priority = -1 }
 alloc_instead_of_core          = "warn"
