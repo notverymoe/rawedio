@@ -1,6 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
 
+use crate::manager::BackendSource;
 use crate::utils::NoHashIndexMap;
 use crate::wrappers::{AddSound, ChannelCountConverter, ClearSounds, SampleRateConverter, SoundId, SoundRegistry};
 use crate::{NextState, RawedioError, Sound};
@@ -44,11 +45,13 @@ impl SoundMixer {
             to_remove: Vec::new(),
         }
     }
+}
 
+impl BackendSource for SoundMixer {
     /// Set the output channel count and sample rate.
     /// Added sounds will be converted to the output values. Must only be called
     /// when the next sample is for the first channel in the frame.
-    pub fn set_output_channel_count_and_sample_rate(
+    fn set_output_channel_count_and_sample_rate(
         &mut self,
         output_channel_count: u16,
         output_sample_rate: u32,
@@ -82,8 +85,6 @@ impl Sound for SoundMixer {
 
     fn on_start_of_batch(&mut self) {
         // Attempt to grab from paused sounds again
-//        self.sounds.extend(self.paused_sounds);
-
         self.sounds.reserve(self.paused_sounds.len());
         for (id, paused_sound) in self.paused_sounds.drain(..) {
             self.sounds.insert(id, paused_sound);

@@ -9,8 +9,8 @@ use std::error::Error;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{BufferSize as CpalBufferSize, Error as CpalError, ErrorKind, FromSample, SizedSample};
 
-use crate::manager::{BackendSource, Manager, Renderer};
-use crate::{NextState, Sound};
+use crate::manager::BackendSource;
+use crate::NextState;
 
 /// A backend that uses [cpal](https://www.docs.rs/cpal) to output to devices.
 ///
@@ -95,15 +95,15 @@ impl CpalBackend {
 }
 
 impl CpalBackend {
-    /// Start a cpal output stream and connect it to the returned Manager.
+
+    /// Start a cpal output stream and connect it to the given Renderer.
     ///
     /// Only a single stream is supported at a time per `CpalBackend` object.
     ///
     /// Cpal stream errors will be reported by calling `error_callback`.
     #[allow(clippy::panic_in_result_fn)]
-    pub fn start<E>(&mut self, error_callback: E) -> Result<Manager, CpalBackendError>
+    pub fn start_with<E>(&mut self, error_callback: E, mut renderer: impl BackendSource + 'static) -> Result<(), CpalBackendError>
     where E: FnMut(CpalError) + Send + 'static {
-        let (manager, mut renderer) = Manager::new();
         renderer.set_output_channel_count_and_sample_rate(self.channel_count, self.sample_rate);
         assert_matches!(
             renderer.fill_next_frames(&mut []),
@@ -147,14 +147,15 @@ impl CpalBackend {
 
         stream.play().map_err(CpalBackendError::PlayStream)?;
         self.stream = Some(stream);
-        Ok(manager)
+        Ok(())
     }
+
 }
 
 /// Converts Rawedio's internal i16 samples to the format required by the audio
 /// device (type T).
 fn make_data_callback<T>(
-    mut renderer: Renderer,
+    mut renderer: impl BackendSource,
     channel_count: u16,
 ) -> impl FnMut(&mut [T], &cpal::OutputCallbackInfo)
 where
