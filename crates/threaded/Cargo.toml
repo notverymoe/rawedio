@@ -52,6 +52,7 @@ triomphe = "0.1.16"
 portable-atomic = "1.15.0"
 replace_with = "0.1.8"
 log = "0.4.20"
+thiserror = "2.0.20"
 
 [dev-dependencies]
 env_logger = "0.10"

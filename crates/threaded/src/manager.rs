@@ -1,10 +1,10 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use std::{error::Error, sync::mpsc::SendError, time::Duration};
+use std::{error::Error, time::Duration};
 
 use rawedio::{Sound, operators::SoundMixer, wrappers::{Controllable, Controller, SoundId}};
 
-use crate::{ThreadedRendererMixer, ThreadedSoundManager, ThreadedSoundRx, pipeline::WorkerCommand};
+use crate::{RawedioThreadingError, ThreadedRendererMixer, ThreadedSoundManager, ThreadedSoundRx};
 
 const BUFFER_DECODE_DUR: Duration = Duration::from_millis(100);
 const BUFFER_DECODE_COUNT: usize  = 4;
@@ -26,14 +26,13 @@ impl ThreadedManager {
     ///
     /// Normally you do not need to call this function directly but you instead
     /// call `.start(...)` on a backend which will call this function.
-    #[must_use]
-    pub fn new() -> (Self, ThreadedRendererMixer) {
+    pub fn new() -> Result<(Self, ThreadedRendererMixer), RawedioThreadingError> {
         let (mixer, mixer_controller) =
             Controllable::new(SoundMixer::new(DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE));
-        let decode_manager = ThreadedSoundManager::default();
-        let renderer = ThreadedRendererMixer::new_mixer(mixer, mixer_controller.clone());
+        let decode_manager = ThreadedSoundManager::new()?;
+        let renderer = ThreadedRendererMixer::new_mixer(mixer, mixer_controller.clone())?;
         let manager = ThreadedManager { mixer_controller, decode_manager };
-        (manager, renderer)
+        Ok((manager, renderer))
     }
 
     /// Add a new Sound to be played in parallel to any existing sounds.

@@ -10,7 +10,7 @@ use rawedio::operators::SoundMixer;
 use rawedio::wrappers::{ChannelCountConverter, Controllable, Controller, SampleRateConverter};
 use rawedio::{RawedioError, Sound, NextState};
 
-use crate::{ThreadedSoundManager, ThreadedSoundRx};
+use crate::{RawedioThreadingError, ThreadedSoundManager, ThreadedSoundRx};
 
 pub struct ForSound;
 pub struct ForBackendSource;
@@ -47,11 +47,10 @@ pub struct ThreadedRenderer<S: Sound, B: Send = ForBackendSource> {
 impl ThreadedRenderer<SoundMixer, ForBackendSource> {
 
     /// Creates a threaded renderer that pulls from a mixer
-    #[must_use]
     pub fn new_mixer(
         controllable: Controllable<SoundMixer>,
         controller:   Controller<SoundMixer>
-    ) -> Self {
+    ) -> Result<Self, RawedioThreadingError> {
         Self::new_inner(controllable, controller)
     }
 
@@ -60,11 +59,10 @@ impl ThreadedRenderer<SoundMixer, ForBackendSource> {
 impl<S: Sound + 'static> ThreadedRenderer<S, ForSound> {
 
     /// Creates a threaded renderer that pulls from an arbitrary sound
-    #[must_use]
     pub fn new_sound(
         controllable: Controllable<S>,
         controller:   Controller<S>
-    ) -> Self {
+    ) -> Result<Self, RawedioThreadingError> {
         Self::new_inner(controllable, controller)
     }
 
@@ -74,25 +72,25 @@ impl<S: Sound + 'static, B: Send> ThreadedRenderer<S, B> {
     fn new_inner(
         controllable: Controllable<S>,
         controller:   Controller<S>
-    ) -> Self {
+    ) -> Result<Self, RawedioThreadingError> {
 
         let sample_rate   = controllable.sample_rate();
         let channel_count = controllable.channel_count();
 
-        let mut thread_manager = ThreadedSoundManager::<Controllable<S>>::new_with_timeout(RENDERER_BUFFER_DURATION/2);
+        let mut thread_manager = ThreadedSoundManager::<Controllable<S>>::new_with_timeout(RENDERER_BUFFER_DURATION/2)?;
         let (_, rx) = thread_manager.add(
             RENDERER_BUFFER_DURATION,
             RENDERER_BUFFER_COUNT,
             controllable
-        ).unwrap();
+        ).map_err(|_| RawedioThreadingError::WorkerError)?;
 
-        ThreadedRenderer { 
+        Ok(ThreadedRenderer { 
             _thread_manager: thread_manager,
             mixer_controller: controller,
             inner: wrap_in_converter(rx, sample_rate, channel_count),
             metadata_changed: false,
             _marker: PhantomData,
-        }
+        })
     }
 }
 

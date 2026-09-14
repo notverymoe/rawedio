@@ -4,7 +4,7 @@ use std::{hash::BuildHasherDefault, sync::mpsc::{self, Receiver, SendError, Send
 
 use rawedio::{Sound, utils::NoHashIndexMap, wrappers::SoundId};
 
-use crate::{ThreadedSoundRx, threaded_sound::{ThreadedSoundTx, create_threaded_sound}};
+use crate::{RawedioThreadingError, ThreadedSoundRx, threaded_sound::{ThreadedSoundTx, create_threaded_sound}};
 
 /// Manages sounds that render on another thread
 pub struct ThreadedSoundManager<S: Sound> {
@@ -13,19 +13,21 @@ pub struct ThreadedSoundManager<S: Sound> {
     thread: Thread,
 }
 
-impl<S: Sound + 'static> Default for ThreadedSoundManager<S> {
-
-    fn default() -> Self {
-        let (tx, rx) = channel();
-        Self::new_with_thread(
-            tx, 
-            start_worker_thread(ThreadedSoundWorker::new(rx))
-        )
-    }
-
-}
-
 impl<S: Sound + 'static> ThreadedSoundManager<S> {
+
+    /// Creates a new `ThreadedSoundManager` with no timeout on
+    /// thread parking, allowing the thread sleep until additional
+    /// data is requested.
+    /// 
+    /// Useful for background asset decoding.
+    /// 
+    pub fn new() -> Result<Self, RawedioThreadingError> {
+        let (tx, rx) = channel();
+        Ok(Self::new_with_thread(
+            tx, 
+            start_worker_thread(ThreadedSoundWorker::new(rx))?
+        ))
+    }
 
     /// Creates a new `ThreadedSoundManager` with a timeout on
     /// thread parking, allowing the thread to ensure that it's 
@@ -33,13 +35,12 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
     /// 
     /// Useful to bound the impact of the consumer lagging.
     /// 
-    #[must_use]
-    pub fn new_with_timeout(timeout: Duration) -> Self {
+    pub fn new_with_timeout(timeout: Duration) -> Result<Self, RawedioThreadingError> {
         let (tx, rx) = channel();
-        Self::new_with_thread(
+        Ok(Self::new_with_thread(
             tx, 
-            start_worker_thread_timeout(timeout, ThreadedSoundWorker::new(rx))
-        )
+            start_worker_thread_timeout(timeout, ThreadedSoundWorker::new(rx))?
+        ))
     }
 
     /// Creates a new `ThreadedSoundManager` with a custom thread. Should
@@ -98,7 +99,12 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
 
 impl<S: Sound> Drop for ThreadedSoundManager<S> {
     fn drop(&mut self) {
-        // Try to stop the other thread
+        // Try to stop the other thread, in case we
+        // were dropped but the application is still
+        // running. For example, if the user recreates
+        // the threaded renderer backend for some reason.
+        //
+        // If the thread is already stopped, that's fine.
         let _ = self.commands.send(WorkerCommand::Stop);
         self.thread.unpark();
     }
@@ -169,8 +175,8 @@ impl<S: Sound> ThreadedSoundWorker<S> {
 
 fn start_worker_thread<S: Sound + 'static>(
     mut tx: ThreadedSoundWorker<S>,
-) -> Thread {
-    std::thread::Builder::new()
+) -> Result<Thread, RawedioThreadingError> {
+    Ok(std::thread::Builder::new()
         .name("threaded_rawedio_renderer".to_owned())
         .spawn(move || {
             log::info!("th start");
@@ -179,26 +185,26 @@ fn start_worker_thread<S: Sound + 'static>(
                 std::thread::park();
             }
             log::info!("th end");
-        })
-        .unwrap()
+        })?
         .thread()
         .clone()
+    )
 }
 
 fn start_worker_thread_timeout<S: Sound + 'static>(
     park_timeout: Duration,
     mut tx: ThreadedSoundWorker<S>,
-) -> Thread {
-    std::thread::Builder::new()
+) -> Result<Thread, RawedioThreadingError> {
+    Ok(std::thread::Builder::new()
         .name("threaded_rawedio_renderer".to_owned())
         .spawn(move || {
             while tx.is_running() {
                 tx.update();
                 std::thread::park_timeout(park_timeout);
             }
-        })
-        .unwrap()
+        })?
         .thread()
         .clone()
+    )
 }
 
