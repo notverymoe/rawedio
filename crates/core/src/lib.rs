@@ -27,8 +27,14 @@ pub use sound::{NextState, Sound};
 /// explicitly.
 #[cfg(feature = "cpal")]
 pub fn start() -> Result<(manager::Manager, backends::CpalBackend), backends::CpalBackendError> {
-    let mut backend =
-        backends::CpalBackend::with_defaults().ok_or(backends::CpalBackendError::NoDevice)?;
-    let manager = backend.start(|error| eprintln!("error with cpal output stream: {error}"))?;
+    let mut backend = backends::CpalBackend::with_defaults()
+        .ok_or(backends::CpalBackendError::NoDevice)?;
+
+    let (manager, renderer) = manager::Manager::new();
+    backend.start_with(
+        |error| eprintln!("error with cpal output stream: {error}"),
+        renderer
+    )?;
+
     Ok((manager, backend))
 }
