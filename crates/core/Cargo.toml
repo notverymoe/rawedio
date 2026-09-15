@@ -70,6 +70,7 @@ replace_with = "0.1.8"
 qoaudio = { version = "0.7" }
 symphonia = { version = "0.6", features = ["all", "opt-simd"] }
 env_logger = "0.10"
+float_eq = "1.0.1"
 
 [[example]]
 name = "play"

@@ -6,11 +6,11 @@
 
 use crate::{NextState, RawedioError, Sound};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone)]
 pub enum NextSample {
     /// A sample for one channel. Channels are interleaved. The first sample is
     /// for the first channel and so forth and repeats (e.g. L-R-L-R-L-R).
-    Sample(i16),
+    Sample(f32),
 
     /// The number of channels or the sample rate has changed. Continue to
     /// retrieve samples afterward. The next sample will always be for the
@@ -38,7 +38,7 @@ impl From<NextSample> for NextState {
 }
 
 pub struct SampleBySample {
-    buffer: Vec<i16>,
+    buffer: Vec<f32>,
     response: NextState,
 }
 
@@ -51,7 +51,7 @@ impl SampleBySample {
     }
 
     fn refill(&mut self, other: &mut dyn Sound) -> Result<NextState, RawedioError> {
-        self.buffer.resize(other.channel_count() as usize, 0);
+        self.buffer.resize(other.channel_count(), 0.0);
         let (count, next) = other.fill_next_frames(&mut self.buffer)?;
         self.buffer.truncate(count);
         Ok(std::mem::replace(&mut self.response, next))
@@ -76,8 +76,8 @@ impl SampleBySample {
     pub fn next_frame(
         &mut self,
         other: &mut dyn Sound,
-    ) -> Result<Vec<i16>, Result<NextSample, RawedioError>> {
-        let mut samples = Vec::with_capacity(other.channel_count() as usize);
+    ) -> Result<Vec<f32>, Result<NextSample, RawedioError>> {
+        let mut samples = Vec::with_capacity(other.channel_count());
         self.append_next_frame_to(other, &mut samples)?;
         Ok(samples)
     }
@@ -85,7 +85,7 @@ impl SampleBySample {
     pub fn append_next_frame_to(
         &mut self,
         other: &mut dyn Sound,
-        samples: &mut Vec<i16>,
+        samples: &mut Vec<f32>,
     ) -> Result<(), Result<NextSample, RawedioError>> {
         for _ in 0..other.channel_count() {
             let next = self.next_sample(other);

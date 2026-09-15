@@ -10,30 +10,30 @@ pub struct SampleRateConverter<S: Sound> {
     /// The from Sound we are pulling samples from.
     inner: S,
     /// The output sample rate in samples per second.
-    to_rate: u32,
+    to_rate: usize,
     /// This is not the samples per second of the output but a possibly scaled
     /// down value.
-    to_rate_scaled: u32,
+    to_rate_scaled: usize,
     /// This is not the samples per second of inner but a possibly scaled down
     /// value.
-    from_rate_scaled: u32,
+    from_rate_scaled: usize,
     /// One sample per channel, extracted from `inner`.
-    current_frame: Vec<i16>,
+    current_frame: Vec<f32>,
     /// The samples right after `current_frame` (one per channel), extracted
     /// from `inner`.
-    next_frame: Vec<i16>,
+    next_frame: Vec<f32>,
     /// Position of `current_sample` modulo `from_rate_scaled`.
-    current_frame_pos_in_chunk: u32,
+    current_frame_pos_in_chunk: usize,
     /// The position of the next sample that this sound should return, modulo
     /// `to_rate_scaled`. This counter is incremented (modulo
     /// `to_rate_scale`) every time the iterator returns a complete frame.
-    next_output_frame_pos_in_chunk: u32,
+    next_output_frame_pos_in_chunk: usize,
     /// The buffer containing the samples waiting to be output. Never needs to
     /// contain the first channels sample. The highest channel is stored
     /// first for efficient `Vec::pop` retrieval
-    output_frame: Vec<i16>,
+    output_frame: Vec<f32>,
     /// The channel count of inner and ourself
-    channel_count: u16,
+    channel_count: usize,
     /// The number of channels has changed. We need to notify the output.
     /// Note that we do not need to notify the output for sample rate changes
     /// because we ensure we always output the same output sample rate and
@@ -51,7 +51,7 @@ where S: Sound
 {
     /// Create a new `SampleRateConverter` with an output sample rate of
     /// `to_rate`.
-    pub fn new(inner: S, to_rate: u32) -> SampleRateConverter<S> {
+    pub fn new(inner: S, to_rate: usize) -> SampleRateConverter<S> {
         let channel_count = inner.channel_count();
         let mut new = SampleRateConverter {
             inner,
@@ -85,7 +85,7 @@ where S: Sound
         // finding greatest common divisor
         let gcd = {
             #[inline]
-            fn gcd(a: u32, b: u32) -> u32 {
+            fn gcd(a: usize, b: usize) -> usize {
                 if b == 0 {
                     a
                 } else {
@@ -104,7 +104,7 @@ where S: Sound
         self.from_rate_scaled = from_rate / gcd;
         self.current_frame_pos_in_chunk = 0;
         self.next_output_frame_pos_in_chunk = 0;
-        self.output_frame = Vec::with_capacity(channel_count as usize - 1);
+        self.output_frame = Vec::with_capacity(channel_count - 1);
     }
 
     fn fill_frames(&mut self) -> Result<bool, RawedioError> {
@@ -178,11 +178,11 @@ where S: Sound
 impl<S> Sound for SampleRateConverter<S>
 where S: Sound
 {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.inner.channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.to_rate
     }
 
@@ -190,7 +190,7 @@ where S: Sound
         self.inner.on_start_of_batch();
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         for (i, dst) in buffer.iter_mut().enumerate() {
             match self.next_sample() {
                 Ok(NextSample::Sample(s)) => *dst = s,
@@ -357,20 +357,25 @@ impl<S: Sound> Wrapper for SampleRateConverter<S> {
     }
 }
 
-const fn linear_interpolation(first: i16, second: i16, numerator: u32, denominator: u32) -> i16 {
-    (first as i64 + (second as i64 - first as i64) * numerator as i64 / denominator as i64) as i16
+const fn linear_interpolation(
+    first: f32,
+    second: f32,
+    numerator: usize,
+    denominator: usize,
+) -> f32 {
+    first + (second - first) * (numerator as f32) / (denominator as f32)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::utils::test::Sawtooth;
     use crate::wrappers::{SampleRateConverter, SetPaused, SetSpeed, Wrapper};
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn test_no_conversion() {
-        let mut buffer = [0, 0];
-        let sound = Sawtooth::new(2, 1000).pausable();
+        let mut buffer = [0.0, 0.0];
+        let sound = Sawtooth::new(2, 1000, 0.1).pausable();
         let mut converted = SampleRateConverter::new(sound, 1000);
         assert_eq!(converted.channel_count(), 2);
         assert_eq!(converted.sample_rate(), 1000);
@@ -379,19 +384,19 @@ mod tests {
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [0, 0]);
+        assert_float_all_ulp_eq!(buffer, [0.0, 0.0]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 1]);
+        assert_float_all_ulp_eq!(buffer, [0.1, 0.1]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [2, 2]);
+        assert_float_all_ulp_eq!(buffer, [0.2, 0.2]);
 
         converted.inner_mut().set_paused(true);
         assert_eq!(
@@ -404,13 +409,13 @@ mod tests {
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [3, 3]);
+        assert_float_all_ulp_eq!(buffer, [0.3, 0.3]);
     }
 
     #[test]
     fn test_four_times() {
-        let mut buffer = [0, 0];
-        let sound = Sawtooth::new(2, 1000).pausable();
+        let mut buffer = [0.0, 0.0];
+        let sound = Sawtooth::new(2, 1000, 0.0625).pausable();
         let mut converted = SampleRateConverter::new(sound, 250);
         assert_eq!(converted.channel_count(), 2);
         assert_eq!(converted.sample_rate(), 250);
@@ -419,19 +424,19 @@ mod tests {
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [0, 0]);
+        assert_float_all_ulp_eq!(buffer, [0.0, 0.0]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [4, 4]);
+        assert_float_all_ulp_eq!(buffer, [0.25, 0.25]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [8, 8]);
+        assert_float_all_ulp_eq!(buffer, [0.5, 0.5]);
 
         converted.inner_mut().set_paused(true);
         assert_eq!(
@@ -446,61 +451,103 @@ mod tests {
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [10, 10]);
+        assert_float_all_ulp_eq!(buffer, [0.625, 0.625]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [14, 14]);
+        assert_float_all_ulp_eq!(buffer, [0.875, 0.875]);
     }
 
     #[test]
     fn test_div_4() {
-        let mut buffer = [0, 0];
-        let sound = Sawtooth::new(2, 1000).pausable();
+        let mut buffer = [0.0, 0.0];
+        let sound = Sawtooth::new(2, 1000, 0.0625).pausable();
         let mut converted = SampleRateConverter::new(sound, 4000);
         assert_eq!(converted.channel_count(), 2);
         assert_eq!(converted.sample_rate(), 4000);
-
-        for _ in 0..4 {
-            assert_eq!(
-                converted.fill_next_frames(&mut buffer).unwrap(),
-                (2, NextState::Playing)
-            );
-            assert_eq!(buffer, [0, 0]);
-        }
-        for _ in 0..4 {
-            assert_eq!(
-                converted.fill_next_frames(&mut buffer).unwrap(),
-                (2, NextState::Playing)
-            );
-            assert_eq!(buffer, [1, 1]);
-        }
-        for _ in 0..3 {
-            assert_eq!(
-                converted.fill_next_frames(&mut buffer).unwrap(),
-                (2, NextState::Playing)
-            );
-            assert_eq!(buffer, [2, 2]);
-        }
-
-        converted.inner_mut().set_paused(true);
-        // It can take some time for us to flush buffers before we
-        // see the pause from the inner item. This is fine.
-        for _ in 0..1 {
-            assert_eq!(
-                converted.fill_next_frames(&mut buffer).unwrap(),
-                (2, NextState::Playing)
-            );
-            assert_eq!(buffer, [2, 2]);
-        }
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [3, 3]);
+        assert_float_all_ulp_eq!(buffer, [0.0, 0.0]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.015_625, 0.015_625]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.03125, 0.03125]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.046_875, 0.046_875]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.0625, 0.0625]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.078_125, 0.078_125]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.09375, 0.09375]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.109_375, 0.109_375]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.125, 0.125]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.140_625, 0.140_625]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.15625, 0.15625]);
+
+        converted.inner_mut().set_paused(true);
+        // It can take some time for us to flush buffers before we
+        // see the pause from the inner item. This is fine.
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.171_875, 0.171_875]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.1875, 0.1875]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
@@ -514,19 +561,35 @@ mod tests {
         converted.inner_mut().set_paused(false);
         // Coming back from being paused we can lose samples
 
-        for _ in 0..4 {
-            assert_eq!(
-                converted.fill_next_frames(&mut buffer).unwrap(),
-                (2, NextState::Playing)
-            );
-            assert_eq!(buffer, [4, 4]);
-        }
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.25, 0.25]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.265_625, 0.265_625]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.28125, 0.28125]);
+
+        assert_eq!(
+            converted.fill_next_frames(&mut buffer).unwrap(),
+            (2, NextState::Playing)
+        );
+        assert_float_all_ulp_eq!(buffer, [0.296_875, 0.296_875]);
     }
 
     #[test]
     fn catch_metadata_changed_when_passing_through() {
-        let mut buffer = [0];
-        let sound = Sawtooth::new(1, 1000).with_adjustable_speed();
+        let mut buffer = [0.0];
+        let sound = Sawtooth::new(1, 1000, 0.1).with_adjustable_speed();
         let mut converted = SampleRateConverter::new(sound, 1000);
         assert_eq!(converted.channel_count(), 1);
         assert_eq!(converted.sample_rate(), 1000);
@@ -535,13 +598,13 @@ mod tests {
             converted.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [0]);
+        assert_float_all_ulp_eq!(buffer, [0.0]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1]);
+        assert_float_all_ulp_eq!(buffer, [0.1]);
 
         converted.inner_mut().set_speed(2.0);
         assert_eq!(
@@ -556,19 +619,19 @@ mod tests {
             converted.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [2]);
+        assert_float_all_ulp_eq!(buffer, [0.2]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [4]);
+        assert_float_all_ulp_eq!(buffer, [0.4]);
 
         assert_eq!(
             converted.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [6]);
+        assert_float_all_ulp_eq!(buffer, [0.6]);
 
         assert_eq!(converted.channel_count(), 1);
     }

@@ -33,7 +33,7 @@ pub trait BackendSource: Sound {
     /// should provide to the backend via calls to `Sound::next_sample`.
     fn set_output_channel_count_and_sample_rate(
         &mut self,
-        output_channel_count: u16,
-        output_sample_rate: u32,
+        output_channel_count: usize,
+        output_sample_rate: usize,
     );
 }

@@ -8,7 +8,7 @@ use std::time::Duration;
 use rawedio::manager::BackendSource;
 use rawedio::operators::SoundMixer;
 use rawedio::wrappers::{ChannelCountConverter, Controllable, Controller, SampleRateConverter};
-use rawedio::{RawedioError, Sound, NextState};
+use rawedio::{NextState, RawedioError, Sound};
 
 use crate::{RawedioThreadingError, ThreadedSoundManager, ThreadedSoundRx};
 
@@ -24,13 +24,14 @@ pub type ThreadedRendererMixer = ThreadedRenderer<SoundMixer, ForBackendSource>;
 const RENDERER_BUFFER_DURATION: Duration = Duration::from_millis(4);
 const RENDERER_BUFFER_COUNT: usize = 5;
 
-fn wrap_in_converter<S: Sound>(inner: S, sample_rate: u32, channel_count: u16) -> SampleRateConverter<ChannelCountConverter<S>> {
+fn wrap_in_converter<S: Sound>(
+    inner: S,
+    sample_rate: usize,
+    channel_count: usize,
+) -> SampleRateConverter<ChannelCountConverter<S>> {
     SampleRateConverter::new(
-        ChannelCountConverter::new(
-            inner,
-            channel_count
-        ), 
-        sample_rate
+        ChannelCountConverter::new(inner, channel_count),
+        sample_rate,
     )
 }
 
@@ -45,46 +46,45 @@ pub struct ThreadedRenderer<S: Sound, B: Send = ForBackendSource> {
 }
 
 impl ThreadedRenderer<SoundMixer, ForBackendSource> {
-
     /// Creates a threaded renderer that pulls from a mixer
     pub fn new_mixer(
         controllable: Controllable<SoundMixer>,
-        controller:   Controller<SoundMixer>
+        controller: Controller<SoundMixer>,
     ) -> Result<Self, RawedioThreadingError> {
         Self::new_inner(controllable, controller)
     }
-
 }
 
 impl<S: Sound + 'static> ThreadedRenderer<S, ForSound> {
-
     /// Creates a threaded renderer that pulls from an arbitrary sound
     pub fn new_sound(
         controllable: Controllable<S>,
-        controller:   Controller<S>
+        controller: Controller<S>,
     ) -> Result<Self, RawedioThreadingError> {
         Self::new_inner(controllable, controller)
     }
-
 }
 
 impl<S: Sound + 'static, B: Send> ThreadedRenderer<S, B> {
     fn new_inner(
         controllable: Controllable<S>,
-        controller:   Controller<S>
+        controller: Controller<S>,
     ) -> Result<Self, RawedioThreadingError> {
-
-        let sample_rate   = controllable.sample_rate();
+        let sample_rate = controllable.sample_rate();
         let channel_count = controllable.channel_count();
 
-        let mut thread_manager = ThreadedSoundManager::<Controllable<S>>::new_with_timeout(RENDERER_BUFFER_DURATION/2)?;
-        let (_, rx) = thread_manager.add(
-            RENDERER_BUFFER_DURATION,
-            RENDERER_BUFFER_COUNT,
-            controllable
-        ).map_err(|_| RawedioThreadingError::WorkerError)?;
+        let mut thread_manager = ThreadedSoundManager::<Controllable<S>>::new_with_timeout(
+            RENDERER_BUFFER_DURATION / 2,
+        )?;
+        let (_, rx) = thread_manager
+            .add(
+                RENDERER_BUFFER_DURATION,
+                RENDERER_BUFFER_COUNT,
+                controllable,
+            )
+            .map_err(|_| RawedioThreadingError::WorkerError)?;
 
-        Ok(ThreadedRenderer { 
+        Ok(ThreadedRenderer {
             _thread_manager: thread_manager,
             mixer_controller: controller,
             inner: wrap_in_converter(rx, sample_rate, channel_count),
@@ -97,8 +97,8 @@ impl<S: Sound + 'static, B: Send> ThreadedRenderer<S, B> {
 impl<S: Sound + BackendSource> BackendSource for ThreadedRenderer<S, ForBackendSource> {
     fn set_output_channel_count_and_sample_rate(
         &mut self,
-        output_channel_count: u16,
-        output_sample_rate: u32,
+        output_channel_count: usize,
+        output_sample_rate: usize,
     ) {
         self.metadata_changed = true;
 
@@ -112,10 +112,8 @@ impl<S: Sound + BackendSource> BackendSource for ThreadedRenderer<S, ForBackendS
         // Then we also send it to the mixer thread, so that maximum
         // quality is retained and we only passthrough on this thread.
         self.mixer_controller.send_command(Box::new(move |mixer| {
-            mixer.set_output_channel_count_and_sample_rate(
-                output_channel_count,
-                output_sample_rate
-            );
+            mixer
+                .set_output_channel_count_and_sample_rate(output_channel_count, output_sample_rate);
         }));
     }
 }
@@ -123,8 +121,8 @@ impl<S: Sound + BackendSource> BackendSource for ThreadedRenderer<S, ForBackendS
 impl<S: Sound> BackendSource for ThreadedRenderer<S, ForSound> {
     fn set_output_channel_count_and_sample_rate(
         &mut self,
-        output_channel_count: u16,
-        output_sample_rate: u32,
+        output_channel_count: usize,
+        output_sample_rate: usize,
     ) {
         self.metadata_changed = true;
 
@@ -138,11 +136,11 @@ impl<S: Sound> BackendSource for ThreadedRenderer<S, ForSound> {
 }
 
 impl<S: Sound, B: Send> Sound for ThreadedRenderer<S, B> {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.inner.channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.inner.sample_rate()
     }
 
@@ -164,10 +162,7 @@ impl<S: Sound, B: Send> Sound for ThreadedRenderer<S, B> {
     /// the Renderer has been dropped.
     ///
     /// Guaranteed to not return an Error.
-    fn fill_next_frames(
-        &mut self,
-        buffer: &mut [i16],
-    ) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         if self.metadata_changed {
             self.metadata_changed = false;
             return Ok((0, NextState::MetadataChanged));

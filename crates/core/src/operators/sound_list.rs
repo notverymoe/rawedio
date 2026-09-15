@@ -86,17 +86,17 @@ impl FromIterator<Box<dyn Sound>> for SoundList {
 }
 
 // Returned only when no sounds exist so they shouldn't be used in practice.
-const DEFAULT_CHANNEL_COUNT: u16 = 2;
-const DEFAULT_SAMPLE_RATE: u32 = 48000;
+const DEFAULT_CHANNEL_COUNT: usize = 2;
+const DEFAULT_SAMPLE_RATE: usize = 48000;
 
 impl Sound for SoundList {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.sounds
             .first()
             .map_or(DEFAULT_CHANNEL_COUNT, Sound::channel_count)
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.sounds
             .first()
             .map_or(DEFAULT_SAMPLE_RATE, Sound::sample_rate)
@@ -108,7 +108,7 @@ impl Sound for SoundList {
         }
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         let Some(next_sound) = self.sounds.first_mut() else {
             return Ok((0, NextState::Finished));
         };
@@ -177,20 +177,20 @@ mod tests {
 
     use crate::operators::SoundList;
     use crate::sources::MemorySound;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn empty_gives_metadata_changed_on_next() {
-        let mut buffer = [0, 0, 0, 0];
+        let mut buffer = [0.0, 0.0, 0.0, 0.0];
         let mut list = SoundList::new();
         assert_eq!(
             list.fill_next_frames(&mut buffer).unwrap(),
             (0, NextState::Finished)
         );
 
-        let first = MemorySound::from_samples(Arc::new(vec![1, 2, 3, 4]), 4, 1000);
+        let first = MemorySound::from_samples(Arc::new(vec![1.0, 2.0, 3.0, 4.0]), 4, 1000);
         list.add(Box::new(first));
-        let second = MemorySound::from_samples(Arc::new(vec![5, 6]), 2, 8000);
+        let second = MemorySound::from_samples(Arc::new(vec![5.0, 6.0]), 2, 8000);
         list.add(Box::new(second));
         assert_eq!(
             list.fill_next_frames(&mut buffer).unwrap(),
@@ -203,7 +203,7 @@ mod tests {
             list.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::MetadataChanged)
         );
-        assert_eq!(buffer, [1, 2, 3, 4]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0, 3.0, 4.0]);
         assert_eq!(list.channel_count(), 2);
         assert_eq!(list.sample_rate(), 8000);
 
@@ -211,6 +211,6 @@ mod tests {
             list.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Finished)
         );
-        assert_eq!(buffer[..2], [5, 6]);
+        assert_float_all_ulp_eq!(buffer[..2], [5.0, 6.0]);
     }
 }

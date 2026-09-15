@@ -20,11 +20,11 @@ use crate::{utils, RawedioError};
 /// (e.g. [pausable][Sound::pausable]).
 pub trait Sound: Send {
     /// Returns the number of channels.
-    fn channel_count(&self) -> u16;
+    fn channel_count(&self) -> usize;
 
     /// Returns the number of samples per second for each channel for this sound
     /// (e.g. 48,000).
-    fn sample_rate(&self) -> u32;
+    fn sample_rate(&self) -> usize;
 
     /// Called whenever a new batch of audio samples is requested by the
     /// backend, where `count` is the number of samples in the batch.
@@ -44,7 +44,7 @@ pub trait Sound: Send {
     /// first sample should always be for the first channel.
     ///
     /// The result
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError>;
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError>;
 
     /// Read the entire sound into memory. `MemorySound` can be cloned for
     /// efficient reuse. See [`MemorySound::from_sound`].
@@ -165,7 +165,7 @@ pub trait Sound: Send {
         let mut current_sample_rate = self.sample_rate();
         let mut num_frames_remaining = utils::duration_to_num_frames(duration, current_sample_rate);
 
-        let mut scratch = vec![0; current_channel_count as usize];
+        let mut scratch = vec![0.0; current_channel_count];
         while num_frames_remaining > 0 {
             let next = self.fill_next_frames(&mut scratch)?;
             match next {
@@ -186,7 +186,7 @@ pub trait Sound: Send {
                         current_channel_count = new_channel_count;
                         current_sample_rate = new_sample_rate;
                         scratch.clear();
-                        scratch.resize(current_channel_count as usize, 0);
+                        scratch.resize(current_channel_count, 0.0);
                     }
                 }
                 (_, NextState::Paused) => return Ok(false),
@@ -225,11 +225,11 @@ pub enum NextState {
 }
 
 impl Sound for Box<dyn Sound> {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.deref().channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.deref().sample_rate()
     }
 
@@ -237,7 +237,7 @@ impl Sound for Box<dyn Sound> {
         self.deref_mut().on_start_of_batch();
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         self.deref_mut().fill_next_frames(buffer)
     }
 }
@@ -246,12 +246,12 @@ impl Sound for Box<dyn Sound> {
 mod tests {
 
     use crate::utils::test::{ConstantValueSound, Sawtooth};
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn test_constant_value_sound_basic() {
-        let mut buffer = [0, 0];
-        let mut sound = ConstantValueSound::new(42);
+        let mut buffer = [0.0, 0.0];
+        let mut sound = ConstantValueSound::new(42.0);
         assert_eq!(sound.channel_count(), 2);
         assert_eq!(sound.sample_rate(), 44100);
 
@@ -260,13 +260,13 @@ mod tests {
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [42, 42]);
+        assert_float_all_ulp_eq!(buffer, [42.0, 42.0]);
     }
 
     #[test]
     fn test_constant_value_sound_metadata_changes() {
-        let mut buffer = [0, 0];
-        let mut sound = ConstantValueSound::new(42);
+        let mut buffer = [0.0, 0.0];
+        let mut sound = ConstantValueSound::new(42.0);
 
         // Change sample rate
         sound.set_sample_rate(48000);
@@ -279,7 +279,7 @@ mod tests {
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [42, 42]);
+        assert_float_all_ulp_eq!(buffer, [42.0, 42.0]);
 
         // Change channel count
         sound.set_channel_count(1);
@@ -292,7 +292,7 @@ mod tests {
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [42, 42]);
+        assert_float_all_ulp_eq!(buffer, [42.0, 42.0]);
 
         // Multiple changes before sampling
         sound.set_sample_rate(96000);
@@ -307,81 +307,81 @@ mod tests {
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [42, 42]);
+        assert_float_all_ulp_eq!(buffer, [42.0, 42.0]);
     }
 
     #[test]
     fn test_sawtooth_basic() {
-        let mut buffer = [0];
-        let mut sound = Sawtooth::new(1, 44100);
+        let mut buffer = [0.0];
+        let mut sound = Sawtooth::new(1, 44100, 0.1);
 
         // Mono sawtooth should increment each sample
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [0]);
+        assert_float_all_ulp_eq!(buffer, [0.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1]);
+        assert_float_all_ulp_eq!(buffer, [0.1]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [2]);
+        assert_float_all_ulp_eq!(buffer, [0.2]);
     }
 
     #[test]
     fn test_sawtooth_stereo() {
-        let mut buffer = [0, 0];
-        let mut sound = Sawtooth::new(2, 44100);
+        let mut buffer = [0.0, 0.0];
+        let mut sound = Sawtooth::new(2, 44100, 0.1);
 
         // Stereo sawtooth should increment every other sample
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [0, 0]);
+        assert_float_all_ulp_eq!(buffer, [0.0, 0.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 1]);
+        assert_float_all_ulp_eq!(buffer, [0.1, 0.1]);
     }
 
     #[test]
     fn test_sawtooth_wrap_around() {
-        let mut buffer = [0];
-        let mut sound = Sawtooth::new(1, 44100);
-        sound.value = i16::MAX - 1;
+        let mut buffer = [0.0];
+        let mut sound = Sawtooth::new(1, 44100, 0.1);
+        sound.value = 1.9;
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [i16::MAX - 1]);
+        assert_float_all_ulp_eq!(buffer, [0.9]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [i16::MAX]);
+        assert_float_all_ulp_eq!(buffer, [1.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [i16::MIN]);
+        assert_float_all_ulp_eq!(buffer, [-1.0]);
     }
 
     #[test]
     fn test_sawtooth_sample_rate() {
-        let sound = Sawtooth::new(1, 48000);
+        let sound = Sawtooth::new(1, 48000, 0.1);
         assert_eq!(sound.sample_rate(), 48000);
     }
 }

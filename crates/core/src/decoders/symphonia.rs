@@ -17,7 +17,7 @@ use crate::{NextState, RawedioError, Sound};
 
 /// Decode formats using the Symphonia crate decoders.
 pub struct SymphoniaDecoder {
-    sample_rate: u32,
+    sample_rate: usize,
 
     decoder: Box<dyn AudioDecoder>,
     format: Box<dyn FormatReader>,
@@ -80,15 +80,15 @@ impl SymphoniaDecoder {
 }
 
 impl Sound for SymphoniaDecoder {
-    fn channel_count(&self) -> u16 {
-        self.channels.count().try_into().unwrap()
+    fn channel_count(&self) -> usize {
+        self.channels.count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.sample_rate
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         for (i, dst) in buffer.iter_mut().enumerate() {
             match self.next_sample() {
                 Ok(NextSample::Sample(s)) => *dst = s,
@@ -163,8 +163,8 @@ impl SymphoniaDecoder {
                 self.channels = buf_ref.spec().channels().clone();
                 metadata_changed = true;
             }
-            if buf_ref.spec().rate() != self.sample_rate {
-                self.sample_rate = buf_ref.spec().rate();
+            if buf_ref.spec().rate() as usize != self.sample_rate {
+                self.sample_rate = buf_ref.spec().rate() as usize;
                 metadata_changed = true;
             }
             return Ok(Some(metadata_changed));
@@ -176,7 +176,7 @@ pub fn extract_sample_from_ref(
     buffer: &GenericAudioBufferRef,
     channel_idx: u16,
     sample_idx: usize,
-) -> i16 {
+) -> f32 {
     match buffer {
         GenericAudioBufferRef::U8(buffer) => extract_sample(buffer, channel_idx, sample_idx),
         GenericAudioBufferRef::U16(buffer) => extract_sample(buffer, channel_idx, sample_idx),
@@ -195,9 +195,9 @@ pub fn extract_sample<S: Sample>(
     buffer: &AudioBuffer<S>,
     channel_idx: u16,
     sample_idx: usize,
-) -> i16
+) -> f32
 where
-    i16: FromSample<S>,
+    f32: FromSample<S>,
 {
     FromSample::from_sample(buffer.plane(channel_idx as usize).unwrap()[sample_idx])
 }
@@ -215,13 +215,13 @@ impl From<Error> for RawedioError {
 mod tests {
 
     use crate::decoders::SymphoniaDecoder;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     const SINE_WAVE_FILE: &[u8] = include_bytes!("data/audiocheck.net_sin_1000Hz_0dBFS_0.1s.mp3");
 
     #[test]
     fn samples_of_test_file() {
-        let mut buffer = [0];
+        let mut buffer = [0.0];
         let mut decoder =
             SymphoniaDecoder::new(Box::new(std::io::Cursor::new(SINE_WAVE_FILE)), None).unwrap();
         assert_eq!(decoder.sample_rate(), 44100);
@@ -230,7 +230,7 @@ mod tests {
             let sample = decoder.fill_next_frames(&mut buffer).unwrap();
             match sample {
                 (1, NextState::Playing) => {
-                    assert!(buffer[0].abs() < 700);
+                    assert!(buffer[0].abs() < 700.0);
                 }
                 _ => unreachable!(),
             }
@@ -240,73 +240,73 @@ mod tests {
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [4235]); // 2
+        assert_float_all_ulp_eq!(buffer, [0.129_256_08]); // 2
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [8784]); // 3
+        assert_float_all_ulp_eq!(buffer, [0.268_068]); // 3
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [12773]); // 4
+        assert_float_all_ulp_eq!(buffer, [0.389_820_46]); // 4
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [16552]); // 5
+        assert_float_all_ulp_eq!(buffer, [0.505_154_9]); // 5
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [20398]); // 6
+        assert_float_all_ulp_eq!(buffer, [0.622_499_64]); // 6
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [23584]); // 7
+        assert_float_all_ulp_eq!(buffer, [0.719_731_87]); // 7
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [25960]); // 8
+        assert_float_all_ulp_eq!(buffer, [0.792_264_9]); // 8
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [28079]); // 9
+        assert_float_all_ulp_eq!(buffer, [0.856_923_46]); // 9
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [29853]); // 10
+        assert_float_all_ulp_eq!(buffer, [0.911_045_8]); // 10
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [30799]); // 11
+        assert_float_all_ulp_eq!(buffer, [0.939_938_6]); // 11
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [31009]); // 12
+        assert_float_all_ulp_eq!(buffer, [0.946_347_1]); // 12
 
         assert_eq!(
             decoder.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [30770]); // 13
+        assert_float_all_ulp_eq!(buffer, [0.939_042_3]); // 13
 
         for _i in 0..4398 {
             let (count, sample) = decoder.fill_next_frames(&mut buffer).unwrap();

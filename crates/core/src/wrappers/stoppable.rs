@@ -48,11 +48,11 @@ where S: Sound
 impl<S> Sound for Stoppable<S>
 where S: Sound
 {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.inner.channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.inner.sample_rate()
     }
 
@@ -60,7 +60,7 @@ where S: Sound
         self.inner.on_start_of_batch();
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         if self.stopped {
             return Ok((0, NextState::Finished));
         }
@@ -114,18 +114,18 @@ mod tests {
 
     use crate::utils::test::ConstantValueSound;
     use crate::wrappers::SetStopped;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn set_stopped() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).stoppable();
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).stoppable();
         // starts unpaused
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1000]);
+        assert_float_all_ulp_eq!(buffer, [1000.0]);
         first.set_stopped();
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),

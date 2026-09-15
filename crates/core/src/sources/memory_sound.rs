@@ -10,9 +10,9 @@ use crate::{NextState, RawedioError, Sound};
 /// played simultaneously. Optionally the sound can repeat forever.
 #[derive(Clone)]
 pub struct MemorySound {
-    samples: Arc<Vec<i16>>,
-    channel_count: u16,
-    sample_rate: u32,
+    samples: Arc<Vec<f32>>,
+    channel_count: usize,
+    sample_rate: usize,
 
     next_sample: usize,
     should_loop: bool,
@@ -53,7 +53,7 @@ impl MemorySound {
 
         loop {
             let from = samples.len();
-            samples.resize(samples.len() + channel_count as usize, 0);
+            samples.resize(samples.len() + channel_count, 0.0);
             let sample = orig.fill_next_frames(&mut samples[from..])?;
             match sample {
                 (_, NextState::Playing) => (),
@@ -68,10 +68,10 @@ impl MemorySound {
                     // by ensuring that the next sample after MetadataChanged is
                     // for the first channel.
                     if count == 0 {
-                        samples.truncate(samples.len() - channel_count as usize);
-                    } else if count != channel_count as usize {
+                        samples.truncate(samples.len() - channel_count);
+                    } else if count != channel_count {
                         // This should be rare so lets just output 0 for the filler samples.
-                        samples[from + count..].fill(0);
+                        samples[from + count..].fill(0.0);
                     }
                 }
                 (_, NextState::Paused | NextState::Finished) => break,
@@ -93,9 +93,9 @@ impl MemorySound {
     /// `next_samples` function (e.g. interleaved by channel).
     #[must_use]
     pub const fn from_samples(
-        samples: Arc<Vec<i16>>,
-        channel_count: u16,
-        sample_rate: u32,
+        samples: Arc<Vec<f32>>,
+        channel_count: usize,
+        sample_rate: usize,
     ) -> MemorySound {
         MemorySound {
             samples,
@@ -114,15 +114,15 @@ impl MemorySound {
 }
 
 impl Sound for MemorySound {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.channel_count
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.sample_rate
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         let mut remaining = buffer.len();
         while remaining > 0 {
             let from = buffer.len() - remaining;
@@ -144,8 +144,8 @@ impl Sound for MemorySound {
     }
 }
 
-impl AsRef<[i16]> for MemorySound {
-    fn as_ref(&self) -> &[i16] {
+impl AsRef<[f32]> for MemorySound {
+    fn as_ref(&self) -> &[f32] {
         &self.samples
     }
 }
@@ -157,23 +157,26 @@ mod tests {
 
     use crate::operators::SoundList;
     use crate::sources::MemorySound;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn metadata_change_two_off_does_not_cause_desync() {
-        let first = MemorySound::from_samples(Arc::new(vec![1, 2, 3, 4, 11, 12]), 4, 1000);
-        assert_eq!(first.as_ref(), [1, 2, 3, 4, 11, 12]);
+        let first =
+            MemorySound::from_samples(Arc::new(vec![1.0, 2.0, 3.0, 4.0, 11.0, 12.0]), 4, 1000);
+        assert_eq!(first.as_ref(), [1.0, 2.0, 3.0, 4.0, 11.0, 12.0]);
 
-        let second = MemorySound::from_samples(Arc::new(vec![21, 22, 23, 24]), 4, 1000);
-        assert_eq!(second.as_ref(), [21, 22, 23, 24]);
+        let second = MemorySound::from_samples(Arc::new(vec![21.0, 22.0, 23.0, 24.0]), 4, 1000);
+        assert_eq!(second.as_ref(), [21.0, 22.0, 23.0, 24.0]);
 
         let mut list = SoundList::new();
         list.add(Box::new(first));
         list.add(Box::new(second));
 
-        let mut buffer = [0, 0, 0, 0];
+        let mut buffer = [0.0, 0.0, 0.0, 0.0];
         let mut sound = MemorySound::from_sound(list).unwrap();
-        assert_eq!(sound.as_ref(), [1, 2, 3, 4, 11, 12, 0, 0, 21, 22, 23, 24]);
+        assert_eq!(sound.as_ref(), [
+            1.0, 2.0, 3.0, 4.0, 11.0, 12.0, 0.0, 0.0, 21.0, 22.0, 23.0, 24.0
+        ]);
 
         assert_eq!(sound.sample_rate(), 1000);
         assert_eq!(sound.channel_count(), 4);
@@ -181,19 +184,19 @@ mod tests {
             sound.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2, 3, 4]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0, 3.0, 4.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::Playing)
         );
-        assert_eq!(buffer, [11, 12, 0, 0]);
+        assert_float_all_ulp_eq!(buffer, [11.0, 12.0, 0.0, 0.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::Finished)
         );
-        assert_eq!(buffer, [21, 22, 23, 24]);
+        assert_float_all_ulp_eq!(buffer, [21.0, 22.0, 23.0, 24.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
@@ -203,13 +206,13 @@ mod tests {
 
     #[test]
     fn metadata_change_one_off_does_not_cause_desync() {
-        let first = MemorySound::from_samples(Arc::new(vec![1, 2, 3, 4, 11]), 4, 1000);
-        let second = MemorySound::from_samples(Arc::new(vec![21, 22, 23, 24]), 4, 1000);
+        let first = MemorySound::from_samples(Arc::new(vec![1.0, 2.0, 3.0, 4.0, 11.0]), 4, 1000);
+        let second = MemorySound::from_samples(Arc::new(vec![21.0, 22.0, 23.0, 24.0]), 4, 1000);
         let mut list = SoundList::new();
         list.add(Box::new(first));
         list.add(Box::new(second));
 
-        let mut buffer = [0, 0, 0, 0];
+        let mut buffer = [0.0, 0.0, 0.0, 0.0];
         let mut sound = MemorySound::from_sound(list).unwrap();
         assert_eq!(sound.sample_rate(), 1000);
         assert_eq!(sound.channel_count(), 4);
@@ -217,19 +220,19 @@ mod tests {
             sound.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2, 3, 4]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0, 3.0, 4.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::Playing)
         );
-        assert_eq!(buffer, [11, 0, 0, 0]);
+        assert_float_all_ulp_eq!(buffer, [11.0, 0.0, 0.0, 0.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::Finished)
         );
-        assert_eq!(buffer, [21, 22, 23, 24]);
+        assert_float_all_ulp_eq!(buffer, [21.0, 22.0, 23.0, 24.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
@@ -239,13 +242,13 @@ mod tests {
 
     #[test]
     fn metadata_change_in_sync() {
-        let first = MemorySound::from_samples(Arc::new(vec![1, 2, 3, 4]), 4, 1000);
-        let second = MemorySound::from_samples(Arc::new(vec![11, 12, 13, 14]), 4, 1000);
+        let first = MemorySound::from_samples(Arc::new(vec![1.0, 2.0, 3.0, 4.0]), 4, 1000);
+        let second = MemorySound::from_samples(Arc::new(vec![11.0, 12.0, 13.0, 14.0]), 4, 1000);
         let mut list = SoundList::new();
         list.add(Box::new(first));
         list.add(Box::new(second));
 
-        let mut buffer = [0, 0, 0, 0];
+        let mut buffer = [0.0, 0.0, 0.0, 0.0];
         let mut sound = MemorySound::from_sound(list).unwrap();
 
         assert_eq!(sound.sample_rate(), 1000);
@@ -255,13 +258,13 @@ mod tests {
             sound.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2, 3, 4]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0, 3.0, 4.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (4, NextState::Finished)
         );
-        assert_eq!(buffer, [11, 12, 13, 14]);
+        assert_float_all_ulp_eq!(buffer, [11.0, 12.0, 13.0, 14.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
@@ -271,38 +274,38 @@ mod tests {
 
     #[test]
     fn loop_forever() {
-        let mut buffer = [0, 0];
-        let mut sound = MemorySound::from_samples(Arc::new(vec![1, 2]), 2, 1000);
+        let mut buffer = [0.0, 0.0];
+        let mut sound = MemorySound::from_samples(Arc::new(vec![1.0, 2.0]), 2, 1000);
         sound.set_looping(true);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
 
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
     }
 }

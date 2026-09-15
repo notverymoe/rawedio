@@ -1,10 +1,16 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-use std::{hash::BuildHasherDefault, sync::mpsc::{self, Receiver, SendError, Sender, channel}, thread::Thread, time::Duration};
+use std::hash::BuildHasherDefault;
+use std::sync::mpsc::{self, Receiver, SendError, Sender, channel};
+use std::thread::Thread;
+use std::time::Duration;
 
-use rawedio::{Sound, utils::NoHashIndexMap, wrappers::SoundId};
+use rawedio::Sound;
+use rawedio::utils::NoHashIndexMap;
+use rawedio::wrappers::SoundId;
 
-use crate::{RawedioThreadingError, ThreadedSoundRx, threaded_sound::{ThreadedSoundTx, create_threaded_sound}};
+use crate::threaded_sound::{ThreadedSoundTx, create_threaded_sound};
+use crate::{RawedioThreadingError, ThreadedSoundRx};
 
 /// Manages sounds that render on another thread
 pub struct ThreadedSoundManager<S: Sound> {
@@ -14,44 +20,43 @@ pub struct ThreadedSoundManager<S: Sound> {
 }
 
 impl<S: Sound + 'static> ThreadedSoundManager<S> {
-
     /// Creates a new `ThreadedSoundManager` with no timeout on
     /// thread parking, allowing the thread sleep until additional
     /// data is requested.
-    /// 
+    ///
     /// Useful for background asset decoding.
-    /// 
+    ///
     pub fn new() -> Result<Self, RawedioThreadingError> {
         let (tx, rx) = channel();
         Ok(Self::new_with_thread(
-            tx, 
-            start_worker_thread(ThreadedSoundWorker::new(rx))?
+            tx,
+            start_worker_thread(ThreadedSoundWorker::new(rx))?,
         ))
     }
 
     /// Creates a new `ThreadedSoundManager` with a timeout on
-    /// thread parking, allowing the thread to ensure that it's 
+    /// thread parking, allowing the thread to ensure that it's
     /// executed with a minimum frequency.
-    /// 
+    ///
     /// Useful to bound the impact of the consumer lagging.
-    /// 
+    ///
     pub fn new_with_timeout(timeout: Duration) -> Result<Self, RawedioThreadingError> {
         let (tx, rx) = channel();
         Ok(Self::new_with_thread(
-            tx, 
-            start_worker_thread_timeout(timeout, ThreadedSoundWorker::new(rx))?
+            tx,
+            start_worker_thread_timeout(timeout, ThreadedSoundWorker::new(rx))?,
         ))
     }
 
     /// Creates a new `ThreadedSoundManager` with a custom thread. Should
     /// respond to commands sent via the provided Sender.
-    /// 
+    ///
     /// The provided thread will have `Thread::unpark` called on it to
     /// indicate that there are new commands or free buffers to process.
-    /// 
+    ///
     #[must_use]
     pub const fn new_with_thread(commands: Sender<WorkerCommand<S>>, thread: Thread) -> Self {
-        Self{
+        Self {
             next_id: 0,
             commands,
             thread,
@@ -60,22 +65,18 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
 
     /// Move a sound to the worker thread, returns a `ThreadedSoundRx`
     /// which allows you to receive sample data from the thread.
-    /// 
+    ///
     /// `buffer_ms` is how long a sample chunk should be in ms
     /// `buffer_count` is how sample chunks should be buffered
-    /// 
+    ///
     pub fn add(
         &mut self,
-        buffer_dur:   Duration,
+        buffer_dur: Duration,
         buffer_count: usize,
-        sound: S
+        sound: S,
     ) -> Result<(SoundId, ThreadedSoundRx), SendError<WorkerCommand<S>>> {
-        let (tx, rx) = create_threaded_sound(
-            buffer_dur,
-            buffer_count,
-            sound,
-            Some(self.thread.clone())
-        );
+        let (tx, rx) =
+            create_threaded_sound(buffer_dur, buffer_count, sound, Some(self.thread.clone()));
 
         let id = SoundId::from_inner(self.next_id);
         self.next_id += 1;
@@ -88,13 +89,12 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
     /// Removes a sound from the rendering thread, effectively stopping
     /// it. The `ThreadedSoundRx` will return `NextState::Finished`
     /// when it next runs out of buffered samples.
-    /// 
-    pub fn remove(&mut self, id: SoundId) -> Result<(), SendError<WorkerCommand<S>>>{
+    ///
+    pub fn remove(&mut self, id: SoundId) -> Result<(), SendError<WorkerCommand<S>>> {
         self.commands.send(WorkerCommand::Remove(id))?;
         self.thread.unpark();
         Ok(())
     }
-
 }
 
 impl<S: Sound> Drop for ThreadedSoundManager<S> {
@@ -123,9 +123,8 @@ pub struct ThreadedSoundWorker<S: Sound> {
 }
 
 impl<S: Sound> ThreadedSoundWorker<S> {
-
     pub fn new(rx: Receiver<WorkerCommand<S>>) -> Self {
-        Self{
+        Self {
             commands: Some(rx),
             jobs: NoHashIndexMap::with_capacity_and_hasher(32, BuildHasherDefault::default()),
             to_remove: Vec::with_capacity(32),
@@ -137,17 +136,19 @@ impl<S: Sound> ThreadedSoundWorker<S> {
     }
 
     pub fn update(&mut self) {
-        let Some(commands) = &self.commands else { return; };
+        let Some(commands) = &self.commands else {
+            return;
+        };
 
         // Process commands
         for command in commands.try_iter() {
             match command {
                 WorkerCommand::Insert(id, value) => {
                     self.jobs.insert(id, value);
-                },
+                }
                 WorkerCommand::Remove(id) => {
                     self.jobs.swap_remove(&id);
-                },
+                }
                 WorkerCommand::Stop => {
                     self.commands = None;
                     return;
@@ -169,7 +170,6 @@ impl<S: Sound> ThreadedSoundWorker<S> {
         for id in self.to_remove.drain(..).rev() {
             self.jobs.swap_remove(&id);
         }
-
     }
 }
 
@@ -187,8 +187,7 @@ fn start_worker_thread<S: Sound + 'static>(
             log::info!("th end");
         })?
         .thread()
-        .clone()
-    )
+        .clone())
 }
 
 fn start_worker_thread_timeout<S: Sound + 'static>(
@@ -204,7 +203,5 @@ fn start_worker_thread_timeout<S: Sound + 'static>(
             }
         })?
         .thread()
-        .clone()
-    )
+        .clone())
 }
-
