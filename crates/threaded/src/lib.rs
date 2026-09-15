@@ -17,11 +17,10 @@ mod pipeline;
 pub use pipeline::ThreadedSoundManager;
 
 mod threaded_sound;
-use thiserror::Error;
-pub use threaded_sound::ThreadedSoundRx;
-
 #[cfg(feature = "cpal")]
 use rawedio::backends::{CpalBackend, CpalBackendError};
+use thiserror::Error;
+pub use threaded_sound::ThreadedSoundRx;
 
 /// Error related to the threaded rawedio renderer / sounds
 #[derive(Debug, Error)]
@@ -56,10 +55,12 @@ pub fn start() -> Result<(ThreadedManager, CpalBackend), RawedioThreadingError> 
         .map_err(|e| RawedioThreadingError::Backend(e.into()))?;
 
     let (manager, renderer) = ThreadedManager::new()?;
-    backend.start_with(
-        |error| eprintln!("error with cpal output stream: {error}"),
-        renderer
-    ).map_err(|e| RawedioThreadingError::Backend(e.into()))?;
+    backend
+        .start_with(
+            |error| eprintln!("error with cpal output stream: {error}"),
+            renderer,
+        )
+        .map_err(|e| RawedioThreadingError::Backend(e.into()))?;
 
     Ok((manager, backend))
 }

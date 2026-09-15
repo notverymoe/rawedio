@@ -2,7 +2,8 @@
 
 //! Misc utilities
 
-use std::{hash::BuildHasherDefault, time::Duration};
+use std::hash::BuildHasherDefault;
+use std::time::Duration;
 
 use indexmap::IndexMap;
 use nohash_hasher::NoHashHasher;
@@ -43,17 +44,17 @@ pub const fn convert_num_samples(
 /// does not fit into a u64.
 #[must_use]
 pub const fn convert_num_frames(
-    old_num_samples: u64,
-    old_sample_rate: u32,
-    new_sample_rate: u32,
-) -> u64 {
-    old_num_samples * new_sample_rate as u64 / (old_sample_rate as u64)
+    old_num_samples: usize,
+    old_sample_rate: usize,
+    new_sample_rate: usize,
+) -> usize {
+    (old_num_samples * new_sample_rate) / old_sample_rate
 }
 
 /// Return the number of samples that happen within `duration` amount of time
 /// (truncates).
 #[must_use]
-pub fn duration_to_num_frames(duration: Duration, sample_rate: u32) -> u64 {
+pub fn duration_to_num_frames(duration: Duration, sample_rate: usize) -> usize {
     convert_num_frames(
         duration
             .as_micros()
@@ -88,20 +89,40 @@ pub mod test {
 
     use crate::{NextState, RawedioError, Sound};
 
-    pub const DEFAULT_SAMPLE_RATE: u32 = 44100;
-    pub const DEFAULT_CHANNEL_COUNT: u16 = 2;
+    pub const DEFAULT_SAMPLE_RATE: usize = 44100;
+    pub const DEFAULT_CHANNEL_COUNT: usize = 2;
+
+    #[macro_export]
+    macro_rules! assert_float_all_ulp_eq {
+        ($left:expr, $right:expr) => {
+            float_eq::assert_float_eq!($left, $right, ulps_all <= 4);
+        };
+        ($left:expr, $right:expr, $ulps:expr) => {
+            float_eq::assert_float_eq!($left, $right, ulps_all <= $ulps);
+        };
+    }
+
+    #[macro_export]
+    macro_rules! assert_float_all_abs_eq {
+        ($left:expr, $right:expr) => {
+            float_eq::assert_float_eq!($left, $right, abs_all <= 1e-6);
+        };
+        ($left:expr, $right:expr, $abs:expr) => {
+            float_eq::assert_float_eq!($left, $right, abs_all <= $abs);
+        };
+    }
 
     /// Only useful for tests as a constant offset makes no hearable sound.
     pub struct ConstantValueSound {
-        pub value: i16,
-        pub channel_count: u16,
-        pub sample_rate: u32,
+        pub value: f32,
+        pub channel_count: usize,
+        pub sample_rate: usize,
         pub metadata_changed: bool,
     }
 
     impl ConstantValueSound {
         #[must_use]
-        pub fn new(value: i16) -> ConstantValueSound {
+        pub fn new(value: f32) -> ConstantValueSound {
             ConstantValueSound {
                 value,
                 channel_count: DEFAULT_CHANNEL_COUNT,
@@ -112,17 +133,17 @@ pub mod test {
     }
 
     impl Sound for ConstantValueSound {
-        fn channel_count(&self) -> u16 {
+        fn channel_count(&self) -> usize {
             self.channel_count
         }
 
-        fn sample_rate(&self) -> u32 {
+        fn sample_rate(&self) -> usize {
             self.sample_rate
         }
 
         fn fill_next_frames(
             &mut self,
-            buffer: &mut [i16],
+            buffer: &mut [f32],
         ) -> Result<(usize, NextState), RawedioError> {
             if self.metadata_changed {
                 self.metadata_changed = false;
@@ -134,12 +155,12 @@ pub mod test {
     }
 
     impl ConstantValueSound {
-        pub fn set_channel_count(&mut self, new_count: u16) {
+        pub fn set_channel_count(&mut self, new_count: usize) {
             self.channel_count = new_count;
             self.metadata_changed = true;
         }
 
-        pub fn set_sample_rate(&mut self, new_rate: u32) {
+        pub fn set_sample_rate(&mut self, new_rate: usize) {
             self.sample_rate = new_rate;
             self.metadata_changed = true;
         }
@@ -148,46 +169,52 @@ pub mod test {
     /// Start at 0, increment by 1 until MAX value then jump to MIN value and
     /// increment by 1 again
     pub struct Sawtooth {
-        pub value: i16,
-        pub channel_count: u16,
-        pub channel_idx: u16,
-        pub sample_rate: u32,
+        pub step: f32,
+        pub value: f32,
+        pub channel_count: usize,
+        pub channel_idx: usize,
+        pub sample_rate: usize,
     }
 
     impl Sawtooth {
         #[must_use]
-        pub fn new(channel_count: u16, sample_rate: u32) -> Sawtooth {
+        pub fn new(channel_count: usize, sample_rate: usize, step: f32) -> Sawtooth {
             Sawtooth {
-                value: 0,
+                step,
+                value: 1.0,
                 channel_count,
                 channel_idx: 0,
                 sample_rate,
             }
         }
 
-        fn next_sample(&mut self) -> i16 {
+        fn next_sample(&mut self) -> f32 {
             let to_return = self.value;
             self.channel_idx += 1;
             if self.channel_idx == self.channel_count {
                 self.channel_idx = 0;
-                self.value = self.value.wrapping_add(1);
+                if self.value >= 2.0 {
+                    self.value = 0.0;
+                } else {
+                    self.value = f32::min(self.value + self.step, 2.0);
+                }
             }
-            to_return
+            to_return - 1.0
         }
     }
 
     impl Sound for Sawtooth {
-        fn channel_count(&self) -> u16 {
+        fn channel_count(&self) -> usize {
             self.channel_count
         }
 
-        fn sample_rate(&self) -> u32 {
+        fn sample_rate(&self) -> usize {
             self.sample_rate
         }
 
         fn fill_next_frames(
             &mut self,
-            buffer: &mut [i16],
+            buffer: &mut [f32],
         ) -> Result<(usize, NextState), RawedioError> {
             for dst in buffer.iter_mut() {
                 *dst = self.next_sample();

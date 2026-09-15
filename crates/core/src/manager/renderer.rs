@@ -20,8 +20,8 @@ impl Renderer {
 impl BackendSource for Renderer {
     fn set_output_channel_count_and_sample_rate(
         &mut self,
-        output_channel_count: u16,
-        output_sample_rate: u32,
+        output_channel_count: usize,
+        output_sample_rate: usize,
     ) {
         self.mixer
             .inner_mut()
@@ -30,11 +30,11 @@ impl BackendSource for Renderer {
 }
 
 impl Sound for Renderer {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.mixer.channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.mixer.sample_rate()
     }
 
@@ -58,7 +58,7 @@ impl Sound for Renderer {
     /// Guaranteed to not return an Error.
     fn fill_next_frames(
         &mut self,
-        buffer: &mut [i16],
+        buffer: &mut [f32],
     ) -> Result<(usize, crate::NextState), RawedioError> {
         self.mixer.fill_next_frames(buffer)
     }

@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut sound = rawedio::sources::open_file(file_path)?;
     let mut num_samples = 0;
-    let mut scratch = vec![0; 2048];
+    let mut scratch = vec![0.0; 2048];
 
     loop {
         let max_samples = scratch.len() / (sound.channel_count() as usize);

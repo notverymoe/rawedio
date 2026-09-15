@@ -58,21 +58,21 @@ where S: Sound
 impl<S> Sound for AdjustableSpeed<S>
 where S: Sound
 {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.inner.channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
-        let new_rate = (self.inner.sample_rate() as f32 * self.speed_adjustment).round() as u32;
+    fn sample_rate(&self) -> usize {
+        let new_rate = (self.inner.sample_rate() as f32 * self.speed_adjustment).round() as usize;
         // Do not let the new rate be 0 which would cause issues
-        u32::max(1, new_rate)
+        usize::max(1, new_rate)
     }
 
     fn on_start_of_batch(&mut self) {
         self.inner.on_start_of_batch();
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         if self.speed_changed {
             self.speed_changed = false;
             return Ok((0, NextState::MetadataChanged));
@@ -128,60 +128,60 @@ mod tests {
 
     use crate::utils::test::{ConstantValueSound, DEFAULT_SAMPLE_RATE};
     use crate::wrappers::SetSpeed;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn adjust_down() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_speed_of(0.5);
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).with_adjustable_speed_of(0.5);
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1000]);
+        assert_float_all_ulp_eq!(buffer, [1000.0]);
         assert_eq!(first.sample_rate(), 22050);
     }
 
     #[test]
     fn adjust_up() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_speed_of(5.0);
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).with_adjustable_speed_of(5.0);
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1000]);
+        assert_float_all_ulp_eq!(buffer, [1000.0]);
         assert_eq!(first.sample_rate(), 44100 * 5);
     }
 
     #[test]
     fn test_real_fast() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_speed_of(1000.0);
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).with_adjustable_speed_of(1000.0);
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1000]);
+        assert_float_all_ulp_eq!(buffer, [1000.0]);
         assert_eq!(first.sample_rate(), 44100 * 1000);
     }
 
     #[test]
     fn test_max_saturation() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_speed_of(1_000_000.0);
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).with_adjustable_speed_of(usize::MAX as f32);
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1000]);
-        assert_eq!(first.sample_rate(), u32::MAX);
+        assert_float_all_ulp_eq!(buffer, [1000.0]);
+        assert_eq!(first.sample_rate(), usize::MAX);
     }
 
     #[test]
     fn test_min_saturation() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_speed();
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).with_adjustable_speed();
         first.set_speed(0.000_000_000_1);
         assert_eq!(first.sample_rate(), 1);
         assert_eq!(
@@ -192,19 +192,19 @@ mod tests {
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1000]);
+        assert_float_all_ulp_eq!(buffer, [1000.0]);
     }
 
     #[test]
     fn metadata_changed_notification() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_speed();
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).with_adjustable_speed();
         assert_eq!(first.sample_rate(), DEFAULT_SAMPLE_RATE);
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1000]);
+        assert_float_all_ulp_eq!(buffer, [1000.0]);
         first.set_speed(0.50);
         assert_eq!(first.sample_rate(), 22050);
         assert_eq!(
@@ -215,6 +215,6 @@ mod tests {
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [1000]);
+        assert_float_all_ulp_eq!(buffer, [1000.0]);
     }
 }

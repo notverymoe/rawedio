@@ -11,10 +11,10 @@ use crate::{NextState, RawedioError, Sound};
 /// count against the duration (i.e. duration only includes time of samples).
 pub struct FinishAfter<S: Sound> {
     inner: S,
-    fames_remaining: u64,
+    fames_remaining: usize,
     total_duration: Duration,
-    current_channel_count: u16,
-    current_sample_rate: u32,
+    current_channel_count: usize,
+    current_sample_rate: usize,
 }
 
 impl<S> FinishAfter<S>
@@ -53,11 +53,11 @@ where S: Sound
 impl<S> Sound for FinishAfter<S>
 where S: Sound
 {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.inner.channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.inner.sample_rate()
     }
 
@@ -65,19 +65,19 @@ where S: Sound
         self.inner.on_start_of_batch();
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         if self.fames_remaining == 0 {
             return Ok((0, NextState::Finished));
         }
 
         let samples_max = usize::min(
-            self.fames_remaining as usize * self.current_channel_count as usize,
+            self.fames_remaining * self.current_channel_count,
             buffer.len(),
         );
         let next = self.inner.fill_next_frames(&mut buffer[..samples_max])?;
         match next {
             (_, NextState::Playing) => {
-                self.fames_remaining -= (samples_max / self.current_channel_count as usize) as u64;
+                self.fames_remaining -= samples_max / self.current_channel_count;
             }
             (_, NextState::MetadataChanged) => {
                 let total_old_frames = num_frames(self.total_duration, self.current_sample_rate);
@@ -96,10 +96,10 @@ where S: Sound
     }
 }
 
-pub const fn num_frames(duration: Duration, num_samples: u32) -> u64 {
+pub const fn num_frames(duration: Duration, num_samples: usize) -> usize {
     const MICROS_PER_SEC: u64 = 1_000_000;
     let micros = duration.as_secs() * MICROS_PER_SEC + duration.subsec_micros() as u64;
-    micros * num_samples as u64 / MICROS_PER_SEC
+    (micros * num_samples as u64 / MICROS_PER_SEC) as usize
 }
 
 impl<S: Sound> Wrapper for FinishAfter<S> {
@@ -126,12 +126,12 @@ mod tests {
 
     use crate::utils::test::ConstantValueSound;
     use crate::wrappers::SetPaused;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn test_simple() {
-        let mut buffer = [0, 0];
-        let mut sound = ConstantValueSound::new(1000).finish_after(Duration::from_millis(100));
+        let mut buffer = [0.0, 0.0];
+        let mut sound = ConstantValueSound::new(1000.0).finish_after(Duration::from_millis(100));
         for _ in 0..(44100 / 10) {
             assert_matches!(
                 sound.fill_next_frames(&mut buffer).unwrap(),
@@ -146,8 +146,8 @@ mod tests {
 
     #[test]
     fn test_pausing_does_not_count() {
-        let mut buffer = [0, 0];
-        let mut sound = ConstantValueSound::new(1000)
+        let mut buffer = [0.0, 0.0];
+        let mut sound = ConstantValueSound::new(1000.0)
             .pausable()
             .finish_after(Duration::from_millis(100));
         for s in 0..(44100 / 10) {
@@ -163,7 +163,7 @@ mod tests {
                 sound.fill_next_frames(&mut buffer).unwrap(),
                 (2, NextState::Playing | NextState::Finished)
             );
-            assert_eq!(buffer, [1000, 1000]);
+            assert_float_all_ulp_eq!(buffer, [1000.0, 1000.0]);
         }
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
@@ -173,8 +173,8 @@ mod tests {
 
     #[test]
     fn test_metadata_change_beginning() {
-        let mut buffer = [0];
-        let mut sound = ConstantValueSound::new(1000).finish_after(Duration::from_millis(100));
+        let mut buffer = [0.0];
+        let mut sound = ConstantValueSound::new(1000.0).finish_after(Duration::from_millis(100));
         sound.inner_mut().set_sample_rate(22050);
         sound.inner_mut().set_channel_count(1);
         assert_eq!(
@@ -186,7 +186,7 @@ mod tests {
                 sound.fill_next_frames(&mut buffer).unwrap(),
                 (1, NextState::Playing | NextState::Finished)
             );
-            assert_eq!(buffer, [1000]);
+            assert_float_all_ulp_eq!(buffer, [1000.0]);
         }
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
@@ -196,18 +196,18 @@ mod tests {
 
     #[test]
     fn test_metadata_change_halfway() {
-        let mut buffer = [0, 0];
-        let mut sound = ConstantValueSound::new(1000).finish_after(Duration::from_millis(100));
+        let mut buffer = [0.0, 0.0];
+        let mut sound = ConstantValueSound::new(1000.0).finish_after(Duration::from_millis(100));
         for _ in 0..(44100 / 20) {
             assert_matches!(
                 sound.fill_next_frames(&mut buffer).unwrap(),
                 (2, NextState::Playing | NextState::Finished)
             );
-            assert_eq!(buffer, [1000, 1000]);
+            assert_float_all_ulp_eq!(buffer, [1000.0, 1000.0]);
         }
         sound.inner_mut().set_sample_rate(88200);
         sound.inner_mut().set_channel_count(4);
-        let mut buffer = [0, 0, 0, 0];
+        let mut buffer = [0.0, 0.0, 0.0, 0.0];
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (0, NextState::MetadataChanged)
@@ -217,7 +217,7 @@ mod tests {
                 sound.fill_next_frames(&mut buffer).unwrap(),
                 (4, NextState::Playing | NextState::Finished)
             );
-            assert_eq!(buffer, [1000, 1000, 1000, 1000]);
+            assert_float_all_ulp_eq!(buffer, [1000.0, 1000.0, 1000.0, 1000.0]);
         }
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
@@ -227,14 +227,14 @@ mod tests {
 
     #[test]
     fn test_metadata_change_end() {
-        let mut buffer = [0, 0];
-        let mut sound = ConstantValueSound::new(1000).finish_after(Duration::from_millis(100));
+        let mut buffer = [0.0, 0.0];
+        let mut sound = ConstantValueSound::new(1000.0).finish_after(Duration::from_millis(100));
         for _ in 0..(44100 / 10) {
             assert_matches!(
                 sound.fill_next_frames(&mut buffer).unwrap(),
                 (2, NextState::Playing | NextState::Finished)
             );
-            assert_eq!(buffer, [1000, 1000]);
+            assert_float_all_ulp_eq!(buffer, [1000.0, 1000.0]);
         }
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
@@ -242,7 +242,7 @@ mod tests {
         );
         sound.inner_mut().set_sample_rate(22050);
         sound.inner_mut().set_channel_count(1);
-        let mut buffer = [0];
+        let mut buffer = [0.0];
         assert_eq!(
             sound.fill_next_frames(&mut buffer).unwrap(),
             (0, NextState::Finished)

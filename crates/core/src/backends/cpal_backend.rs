@@ -17,8 +17,8 @@ use crate::NextState;
 /// This backend does not currently update the output device if the default
 /// output device of the host changes.
 pub struct CpalBackend {
-    channel_count: u16,
-    sample_rate: u32,
+    channel_count: usize,
+    sample_rate: usize,
     sample_format: cpal::SampleFormat,
     buffer_size: CpalBufferSize,
     device: cpal::Device,
@@ -36,8 +36,8 @@ impl CpalBackend {
         let device = host.default_output_device()?;
 
         let default_config = device.default_output_config().ok()?;
-        let sample_rate = default_config.sample_rate();
-        let channel_count = default_config.channels();
+        let sample_rate = default_config.sample_rate() as usize;
+        let channel_count = default_config.channels() as usize;
         let sample_format = default_config.sample_format();
 
         Some(CpalBackend {
@@ -55,8 +55,8 @@ impl CpalBackend {
     /// Returns None if an output device is not found
     #[must_use]
     pub fn with_default_host_and_device(
-        channel_count: u16,
-        sample_rate: u32,
+        channel_count: usize,
+        sample_rate: usize,
         buffer_size: CpalBufferSize,
     ) -> Option<CpalBackend> {
         let host = cpal::default_host();
@@ -77,8 +77,8 @@ impl CpalBackend {
     /// Create a new `CpalBackend` specifying all fields.
     #[must_use]
     pub const fn new(
-        channel_count: u16,
-        sample_rate: u32,
+        channel_count: usize,
+        sample_rate: usize,
         buffer_size: CpalBufferSize,
         device: cpal::Device,
         sample_format: cpal::SampleFormat,
@@ -95,15 +95,20 @@ impl CpalBackend {
 }
 
 impl CpalBackend {
-
     /// Start a cpal output stream and connect it to the given Renderer.
     ///
     /// Only a single stream is supported at a time per `CpalBackend` object.
     ///
     /// Cpal stream errors will be reported by calling `error_callback`.
     #[allow(clippy::panic_in_result_fn)]
-    pub fn start_with<E>(&mut self, error_callback: E, mut renderer: impl BackendSource + 'static) -> Result<(), CpalBackendError>
-    where E: FnMut(CpalError) + Send + 'static {
+    pub fn start_with<E>(
+        &mut self,
+        error_callback: E,
+        mut renderer: impl BackendSource + 'static,
+    ) -> Result<(), CpalBackendError>
+    where
+        E: FnMut(CpalError) + Send + 'static,
+    {
         renderer.set_output_channel_count_and_sample_rate(self.channel_count, self.sample_rate);
         assert_matches!(
             renderer.fill_next_frames(&mut []),
@@ -112,8 +117,8 @@ impl CpalBackend {
         );
 
         let config = cpal::StreamConfig {
-            channels: self.channel_count,
-            sample_rate: self.sample_rate,
+            channels: self.channel_count as u16,
+            sample_rate: self.sample_rate as u32,
             buffer_size: self.buffer_size,
         };
 
@@ -149,25 +154,24 @@ impl CpalBackend {
         self.stream = Some(stream);
         Ok(())
     }
-
 }
 
 /// Converts Rawedio's internal i16 samples to the format required by the audio
 /// device (type T).
 fn make_data_callback<T>(
     mut renderer: impl BackendSource,
-    channel_count: u16,
+    channel_count: usize,
 ) -> impl FnMut(&mut [T], &cpal::OutputCallbackInfo)
 where
-    T: SizedSample + FromSample<i16>,
+    T: SizedSample + FromSample<f32>,
 {
-    let mut scratch_buffer = Vec::<i16>::default();
+    let mut scratch_buffer = Vec::<f32>::default();
 
     move |buffer: &mut [T], _info: &cpal::OutputCallbackInfo| {
-        assert!(buffer.len().is_multiple_of(channel_count as usize));
+        assert!(buffer.len().is_multiple_of(channel_count));
 
         // Ensure scratch buffer can fit enough elements
-        scratch_buffer.resize(usize::max(buffer.len(), scratch_buffer.len()), 0);
+        scratch_buffer.resize(usize::max(buffer.len(), scratch_buffer.len()), 0.0);
 
         // Process sounds to fill scratch buffer
         renderer.on_start_of_batch();
@@ -183,7 +187,7 @@ where
                 unreachable!("we never change metadata mid-batch")
             }
             (count, NextState::Paused | NextState::Finished) => {
-                scratch_buffer[count..].fill(0);
+                scratch_buffer[count..].fill(0.0);
                 // TODO: implement Finished/Paused
             }
         }

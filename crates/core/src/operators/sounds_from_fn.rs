@@ -17,8 +17,8 @@ type SoundGenerator = Box<dyn FnMut() -> Option<Box<dyn Sound>> + Send>;
 pub struct SoundsFromFn {
     generator: SoundGenerator,
     current: Option<Box<dyn Sound>>,
-    current_channel_count: u16,
-    current_sample_rate: u32,
+    current_channel_count: usize,
+    current_sample_rate: usize,
 }
 
 impl SoundsFromFn {
@@ -56,11 +56,11 @@ impl SoundsFromFn {
 }
 
 impl Sound for SoundsFromFn {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.current.as_ref().map_or(1, Sound::channel_count)
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.current.as_ref().map_or(1000, Sound::sample_rate)
     }
 
@@ -70,7 +70,7 @@ impl Sound for SoundsFromFn {
         }
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         loop {
             let Some(current) = &mut self.current else {
                 return Ok((0, NextState::Finished));
@@ -121,16 +121,16 @@ mod tests {
 
     use crate::operators::SoundsFromFn;
     use crate::sources::MemorySound;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn basic() {
         let generator = || {
-            let sound = MemorySound::from_samples(Arc::new(vec![1, 2]), 2, 1000);
+            let sound = MemorySound::from_samples(Arc::new(vec![1.0, 2.0]), 2, 1000);
             let sound: Box<dyn Sound> = Box::new(sound);
             Some(sound)
         };
-        let mut buffer = [0, 0];
+        let mut buffer = [0.0, 0.0];
         let mut from_fn = SoundsFromFn::new(Box::new(generator));
         assert_eq!(from_fn.channel_count(), 2);
         assert_eq!(from_fn.sample_rate(), 1000);
@@ -139,13 +139,13 @@ mod tests {
             from_fn.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
 
         assert_eq!(
             from_fn.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
     }
 
     #[test]
@@ -158,11 +158,11 @@ mod tests {
             } else if num > 3 {
                 unreachable!("should not have been called again");
             }
-            let sound = MemorySound::from_samples(Arc::new(vec![1, 2]), 2, 1000 + num);
+            let sound = MemorySound::from_samples(Arc::new(vec![1.0, 2.0]), 2, 1000 + num);
             let sound: Box<dyn Sound> = Box::new(sound);
             Some(sound)
         };
-        let mut buffer = [0, 0];
+        let mut buffer = [0.0, 0.0];
         let mut from_fn = SoundsFromFn::new(Box::new(generator));
 
         assert_eq!(from_fn.channel_count(), 2);
@@ -172,14 +172,14 @@ mod tests {
             from_fn.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::MetadataChanged)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
 
         assert_eq!(from_fn.sample_rate(), 1002);
         assert_eq!(
             from_fn.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Finished)
         );
-        assert_eq!(buffer, [1, 2]);
+        assert_float_all_ulp_eq!(buffer, [1.0, 2.0]);
 
         assert_eq!(
             from_fn.fill_next_frames(&mut buffer).unwrap(),

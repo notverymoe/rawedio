@@ -7,9 +7,9 @@ use crate::{NextState, RawedioError, Sound};
 /// For example convert a mono sound to stereo or vice versa.
 pub struct ChannelCountConverter<S: Sound> {
     inner: S,
-    to_count: u16,
+    to_count: usize,
     converter_type: ConverterType,
-    scratch: Vec<i16>,
+    scratch: Vec<f32>,
 }
 
 enum ConverterType {
@@ -22,7 +22,7 @@ impl<S> ChannelCountConverter<S>
 where S: Sound
 {
     /// Wrap `inner` such that it will output `to_count` channels.
-    pub fn new(inner: S, to_count: u16) -> ChannelCountConverter<S> {
+    pub fn new(inner: S, to_count: usize) -> ChannelCountConverter<S> {
         let converter_type = Self::get_type(inner.channel_count(), to_count);
 
         ChannelCountConverter {
@@ -33,7 +33,7 @@ where S: Sound
         }
     }
 
-    fn get_type(from_count: u16, to_count: u16) -> ConverterType {
+    fn get_type(from_count: usize, to_count: usize) -> ConverterType {
         if from_count == to_count {
             ConverterType::PassThrough
         } else if from_count == 1 && to_count == 2 {
@@ -70,11 +70,11 @@ where S: Sound
 impl<S> Sound for ChannelCountConverter<S>
 where S: Sound
 {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.to_count
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.inner.sample_rate()
     }
 
@@ -84,7 +84,7 @@ where S: Sound
 
     fn fill_next_frames(
         &mut self,
-        buffer: &mut [i16],
+        buffer: &mut [f32],
     ) -> Result<(usize, crate::NextState), RawedioError> {
         match self.converter_type {
             ConverterType::PassThrough => {
@@ -96,7 +96,7 @@ where S: Sound
             }
             ConverterType::MonoToStereo => {
                 self.scratch.clear();
-                self.scratch.resize(buffer.len() / 2, 0);
+                self.scratch.resize(buffer.len() / 2, 0.0);
                 let (count, next) = self.inner.fill_next_frames(&mut self.scratch)?;
                 if matches!(next, NextState::MetadataChanged) {
                     self.handle_channel_count_change();
@@ -110,7 +110,7 @@ where S: Sound
             }
             ConverterType::StereoToMono => {
                 self.scratch.clear();
-                self.scratch.resize(buffer.len() * 2, 0);
+                self.scratch.resize(buffer.len() * 2, 0.0);
                 let (count, next) = self.inner.fill_next_frames(&mut self.scratch)?;
                 if matches!(next, NextState::MetadataChanged) {
                     self.handle_channel_count_change();
@@ -120,7 +120,7 @@ where S: Sound
                     .as_chunks::<2>()
                     .0
                     .iter()
-                    .map(|[l, r]| i16::midpoint(*l, *r))
+                    .map(|[l, r]| f32::midpoint(*l, *r))
                     .zip(buffer.iter_mut())
                     .for_each(|(src, dst)| *dst = src);
 

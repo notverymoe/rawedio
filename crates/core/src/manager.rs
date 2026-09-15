@@ -20,8 +20,8 @@ pub struct Manager {
 
 // These are undocumented, should not be relied on and subject to change.
 // Backend implementations should set their values at startup.
-const DEFAULT_CHANNEL_COUNT: u16 = 1;
-const DEFAULT_SAMPLE_RATE: u32 = 1000; // Purposely low value to discourage use
+const DEFAULT_CHANNEL_COUNT: usize = 1;
+const DEFAULT_SAMPLE_RATE: usize = 1000; // Purposely low value to discourage use
 
 impl Manager {
     /// Create a new Manager and the renderer its samples will render to.

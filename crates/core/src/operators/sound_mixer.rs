@@ -1,9 +1,10 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
-
 use crate::manager::BackendSource;
 use crate::utils::NoHashIndexMap;
-use crate::wrappers::{AddSound, ChannelCountConverter, ClearSounds, SampleRateConverter, SoundId, SoundRegistry};
+use crate::wrappers::{
+    AddSound, ChannelCountConverter, ClearSounds, SampleRateConverter, SoundId, SoundRegistry,
+};
 use crate::{NextState, RawedioError, Sound};
 
 type MixedSound = SampleRateConverter<ChannelCountConverter<Box<dyn Sound>>>;
@@ -20,11 +21,11 @@ pub struct SoundMixer {
     sounds: NoHashIndexMap<SoundId, MixedSound>,
     paused_sounds: NoHashIndexMap<SoundId, MixedSound>,
     next_sound_id: u32,
-    output_channel_count: u16,
-    output_sample_rate: u32,
+    output_channel_count: usize,
+    output_sample_rate: usize,
     metadata_changed: bool,
-    next_output_channel_idx: u16,
-    scratch_buffer: Vec<i16>,
+    next_output_channel_idx: usize,
+    scratch_buffer: Vec<f32>,
     to_remove: Vec<(SoundId, bool)>,
 }
 
@@ -32,7 +33,7 @@ impl SoundMixer {
     /// Create a new empty sound mixer with an output channel count and sample
     /// rate that all added sounds will be converted to.
     #[must_use]
-    pub fn new(output_channel_count: u16, output_sample_rate: u32) -> Self {
+    pub fn new(output_channel_count: usize, output_sample_rate: usize) -> Self {
         SoundMixer {
             sounds: NoHashIndexMap::default(),
             paused_sounds: NoHashIndexMap::default(),
@@ -53,8 +54,8 @@ impl BackendSource for SoundMixer {
     /// when the next sample is for the first channel in the frame.
     fn set_output_channel_count_and_sample_rate(
         &mut self,
-        output_channel_count: u16,
-        output_sample_rate: u32,
+        output_channel_count: usize,
+        output_sample_rate: usize,
     ) {
         self.metadata_changed = true;
 
@@ -62,7 +63,11 @@ impl BackendSource for SoundMixer {
         self.output_sample_rate = output_sample_rate;
 
         // Now re-wrap all the sounds with the new values.
-        for mixed_sound in self.sounds.values_mut().chain(self.paused_sounds.values_mut()) {
+        for mixed_sound in self
+            .sounds
+            .values_mut()
+            .chain(self.paused_sounds.values_mut())
+        {
             replace_with::replace_with_or_abort(mixed_sound, |tmp| {
                 let inner = tmp.into_inner().into_inner();
                 SampleRateConverter::new(
@@ -75,11 +80,11 @@ impl BackendSource for SoundMixer {
 }
 
 impl Sound for SoundMixer {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.output_channel_count
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.output_sample_rate
     }
 
@@ -97,7 +102,7 @@ impl Sound for SoundMixer {
 
     /// Guaranteed to not return an Error.
     #[allow(clippy::panic_in_result_fn)]
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         if self.metadata_changed {
             assert_eq!(self.next_output_channel_idx, 0); // TODO debug assert instead? error?
             self.metadata_changed = false;
@@ -105,8 +110,8 @@ impl Sound for SoundMixer {
         }
 
         self.scratch_buffer
-            .resize(usize::max(self.scratch_buffer.len(), buffer.len()), 0);
-        buffer.fill(0);
+            .resize(usize::max(self.scratch_buffer.len(), buffer.len()), 0.0);
+        buffer.fill(0.0);
 
         let mut max_written = 0;
 
@@ -159,7 +164,7 @@ impl Sound for SoundMixer {
                 buffer[..count]
                     .iter_mut()
                     .zip(self.scratch_buffer[..count].iter())
-                    .for_each(|(dst, src)| *dst = dst.saturating_add(*src));
+                    .for_each(|(dst, src)| *dst += *src);
             }
         }
 
@@ -171,8 +176,8 @@ impl Sound for SoundMixer {
             // otherwise drop finished sound
         }
 
-        self.next_output_channel_idx = ((self.next_output_channel_idx as usize + max_written)
-            % (self.output_channel_count as usize)) as u16;
+        self.next_output_channel_idx =
+            (self.next_output_channel_idx + max_written) % (self.output_channel_count);
 
         match (self.sounds.is_empty(), self.paused_sounds.is_empty()) {
             // We assume that we are finished since this sound has been handed
@@ -187,35 +192,32 @@ impl Sound for SoundMixer {
 }
 
 impl SoundRegistry for SoundMixer {
-
     fn add(&mut self, sound: Box<dyn Sound>) -> SoundId {
-        let id = self.next_sound_id;
+        let id = SoundId::from_inner(self.next_sound_id);
         self.next_sound_id += 1;
-        let id = SoundId::from_inner(id);
 
         self.insert(id, sound);
 
         id
     }
-    
+
     fn insert(&mut self, id: SoundId, sound: Box<dyn Sound>) -> Option<Box<dyn Sound>> {
         self.sounds
             .insert(
-                id, 
+                id,
                 SampleRateConverter::new(
                     ChannelCountConverter::new(sound, self.output_channel_count),
                     self.output_sample_rate,
-                )
+                ),
             )
             .map(|v| v.into_inner().into_inner())
     }
-    
+
     fn remove(&mut self, id: SoundId) -> Option<Box<dyn Sound>> {
         self.sounds
             .swap_remove(&id)
             .map(|v| v.into_inner().into_inner())
     }
-    
 }
 
 impl AddSound for SoundMixer {
@@ -238,13 +240,13 @@ mod tests {
     use crate::operators::{SoundList, SoundMixer};
     use crate::utils::test::{ConstantValueSound, DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE};
     use crate::wrappers::AddSound;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn additional_silent_sounds_do_not_affect_first() {
-        let mut buffer = [0, 0];
-        let first = ConstantValueSound::new(5);
-        let second = ConstantValueSound::new(0);
+        let mut buffer = [0.0, 0.0];
+        let first = ConstantValueSound::new(5.0);
+        let second = ConstantValueSound::new(0.0);
         let mut mixer = SoundMixer::new(DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE);
         mixer.add(Box::new(first));
         mixer.add(Box::new(second));
@@ -253,47 +255,47 @@ mod tests {
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [5, 5]);
+        assert_float_all_ulp_eq!(buffer, [5.0, 5.0]);
 
         assert_eq!(
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [5, 5]);
+        assert_float_all_ulp_eq!(buffer, [5.0, 5.0]);
 
         assert_eq!(
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [5, 5]);
+        assert_float_all_ulp_eq!(buffer, [5.0, 5.0]);
 
-        let third = ConstantValueSound::new(0);
+        let third = ConstantValueSound::new(0.0);
         mixer.add(Box::new(third));
 
         assert_eq!(
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [5, 5]);
+        assert_float_all_ulp_eq!(buffer, [5.0, 5.0]);
 
         assert_eq!(
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [5, 5]);
+        assert_float_all_ulp_eq!(buffer, [5.0, 5.0]);
 
         assert_eq!(
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [5, 5]);
+        assert_float_all_ulp_eq!(buffer, [5.0, 5.0]);
     }
 
     #[test]
     fn two_sounds_add_together() {
-        let mut buffer = [0, 0];
-        let first = ConstantValueSound::new(5);
-        let second = ConstantValueSound::new(7);
+        let mut buffer = [0.0, 0.0];
+        let first = ConstantValueSound::new(5.0);
+        let second = ConstantValueSound::new(7.0);
         let mut mixer = SoundMixer::new(DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE);
         mixer.add(Box::new(first));
         mixer.add(Box::new(second));
@@ -301,26 +303,26 @@ mod tests {
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [12, 12]);
+        assert_float_all_ulp_eq!(buffer, [12.0, 12.0]);
 
         assert_eq!(
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [12, 12]);
+        assert_float_all_ulp_eq!(buffer, [12.0, 12.0]);
 
         assert_eq!(
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [12, 12]);
+        assert_float_all_ulp_eq!(buffer, [12.0, 12.0]);
     }
 
     #[test]
     fn empty_sound_list_not_same_sample_rate() {
         // Reproducing issue when SoundMixer matches audio but goes through SoundList
         // with different sample rate
-        let mut buffer = [0, 0];
+        let mut buffer = [0.0, 0.0];
         let mut mixer = SoundMixer::new(2, 40000);
         let (sound, mut controller) = SoundList::new().controllable();
         mixer.add(Box::new(sound));
@@ -330,7 +332,7 @@ mod tests {
             (0, NextState::Paused)
         );
 
-        let mut sound = ConstantValueSound::new(5);
+        let mut sound = ConstantValueSound::new(5.0);
         sound.set_channel_count(2);
         sound.set_sample_rate(40000);
         controller.add(Box::new(sound));
@@ -345,6 +347,6 @@ mod tests {
             mixer.fill_next_frames(&mut buffer).unwrap(),
             (2, NextState::Playing)
         );
-        assert_eq!(buffer, [5, 5]);
+        assert_float_all_ulp_eq!(buffer, [5.0, 5.0]);
     }
 }

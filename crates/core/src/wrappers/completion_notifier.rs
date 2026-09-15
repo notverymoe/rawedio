@@ -37,11 +37,11 @@ where S: Sound
 impl<S> Sound for CompletionNotifier<S>
 where S: Sound
 {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.inner.channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.inner.sample_rate()
     }
 
@@ -49,7 +49,7 @@ where S: Sound
         self.inner.on_start_of_batch();
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         let next = self.inner.fill_next_frames(buffer)?;
         if let (_, NextState::Finished) = next {
             if let Some(sender) = self.sender.take() {

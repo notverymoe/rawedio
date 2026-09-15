@@ -66,11 +66,11 @@ where S: Sound
 impl<S> Sound for AdjustableVolume<S>
 where S: Sound
 {
-    fn channel_count(&self) -> u16 {
+    fn channel_count(&self) -> usize {
         self.inner.channel_count()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> usize {
         self.inner.sample_rate()
     }
 
@@ -78,7 +78,7 @@ where S: Sound
         self.inner.on_start_of_batch();
     }
 
-    fn fill_next_frames(&mut self, buffer: &mut [i16]) -> Result<(usize, NextState), RawedioError> {
+    fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         let next = self.inner.fill_next_frames(buffer)?;
         let count = match next {
             (_, NextState::Playing) => buffer.len(),
@@ -86,7 +86,7 @@ where S: Sound
         };
         buffer[..count]
             .iter_mut()
-            .for_each(|s| *s = ((*s as f32) * self.volume_adjustment) as i16);
+            .for_each(|s| *s *= self.volume_adjustment);
         Ok(next)
     }
 }
@@ -137,41 +137,29 @@ mod tests {
 
     use crate::utils::test::ConstantValueSound;
     use crate::wrappers::SetVolume;
-    use crate::{NextState, Sound};
+    use crate::{assert_float_all_ulp_eq, NextState, Sound};
 
     #[test]
     fn adjust_down() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_volume();
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).with_adjustable_volume();
         first.set_volume(0.5);
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [500]);
+        assert_float_all_ulp_eq!(buffer, [500.0]);
     }
 
     #[test]
     fn adjust_up() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_volume();
+        let mut buffer = [0.0];
+        let mut first = ConstantValueSound::new(1000.0).with_adjustable_volume();
         first.set_volume(5.0);
         assert_eq!(
             first.fill_next_frames(&mut buffer).unwrap(),
             (1, NextState::Playing)
         );
-        assert_eq!(buffer, [5000]);
-    }
-
-    #[test]
-    fn test_saturation() {
-        let mut buffer = [0];
-        let mut first = ConstantValueSound::new(1000).with_adjustable_volume();
-        first.set_volume(1000.0);
-        assert_eq!(
-            first.fill_next_frames(&mut buffer).unwrap(),
-            (1, NextState::Playing)
-        );
-        assert_eq!(buffer, [32767]);
+        assert_float_all_ulp_eq!(buffer, [5000.0]);
     }
 }
