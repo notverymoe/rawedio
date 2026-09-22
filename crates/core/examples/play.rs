@@ -5,16 +5,20 @@ use std::error::Error;
 use rawedio::Sound;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+
     let Some(file_path) = args() else {
         eprintln!("usage: FILE_PATH");
         std::process::exit(2);
     };
 
+    log::info!("Playing {file_path}");
+
     let (mut manager, _backend) = rawedio::start()?;
     let (sound, notifier) = rawedio::sources::open_file(file_path)?.with_completion_notifier();
 
     manager.play(Box::new(sound));
-    let _ = notifier.recv();
+    notifier.block_until_finished();
 
     Ok(())
 }

@@ -74,25 +74,21 @@ where S: Sound
             self.fames_remaining * self.current_channel_count,
             buffer.len(),
         );
-        let next = self.inner.fill_next_frames(&mut buffer[..samples_max])?;
-        match next {
-            (_, NextState::Playing) => {
-                self.fames_remaining -= samples_max / self.current_channel_count;
-            }
-            (_, NextState::MetadataChanged) => {
-                let total_old_frames = num_frames(self.total_duration, self.current_sample_rate);
-                let num_frames_played = total_old_frames - self.fames_remaining;
-                let seconds_played = num_frames_played as f64 / self.current_sample_rate as f64;
-                let duration_played = Duration::from_secs_f64(seconds_played);
-                let duration_remaining = self.total_duration.checked_sub(duration_played).unwrap();
-                self.current_channel_count = self.inner.channel_count();
-                self.current_sample_rate = self.inner.sample_rate();
-                self.fames_remaining = num_frames(duration_remaining, self.current_sample_rate);
-            }
-            (_, NextState::Paused) => (),
-            (_, NextState::Finished) => (),
+        let (count, next) = self.inner.fill_next_frames(&mut buffer[..samples_max])?;
+        self.fames_remaining -= count / self.current_channel_count;
+
+        if next == NextState::MetadataChanged {
+            let total_old_frames = num_frames(self.total_duration, self.current_sample_rate);
+            let num_frames_played = total_old_frames - self.fames_remaining;
+            let seconds_played = num_frames_played as f64 / self.current_sample_rate as f64;
+            let duration_played = Duration::from_secs_f64(seconds_played);
+            let duration_remaining = self.total_duration.checked_sub(duration_played).unwrap();
+            self.current_channel_count = self.inner.channel_count();
+            self.current_sample_rate = self.inner.sample_rate();
+            self.fames_remaining = num_frames(duration_remaining, self.current_sample_rate);
         }
-        Ok(next)
+
+        Ok((count, next))
     }
 }
 

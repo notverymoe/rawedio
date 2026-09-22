@@ -70,7 +70,13 @@ where S: Sound
     fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         let next = self.inner.fill_next_frames(buffer)?;
         match next {
-            (_, NextState::Playing | NextState::MetadataChanged | NextState::Paused) => Ok(next),
+            (
+                _,
+                NextState::Playing
+                | NextState::MetadataChanged
+                | NextState::Paused
+                | NextState::WouldBlock,
+            ) => Ok(next),
             // Since this is controllable we might add another sound later.
             // Ideally we would do this only if the inner sound can have sounds
             // added to it but I don't think we can branch on S: AddSound here.

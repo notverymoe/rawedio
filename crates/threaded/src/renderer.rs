@@ -48,25 +48,28 @@ pub struct ThreadedRenderer<S: Sound, B: Send = ForBackendSource> {
 impl ThreadedRenderer<SoundMixer, ForBackendSource> {
     /// Creates a threaded renderer that pulls from a mixer
     pub fn new_mixer(
+        name: &str,
         controllable: Controllable<SoundMixer>,
         controller: Controller<SoundMixer>,
     ) -> Result<Self, RawedioThreadingError> {
-        Self::new_inner(controllable, controller)
+        Self::new_inner(name, controllable, controller)
     }
 }
 
 impl<S: Sound + 'static> ThreadedRenderer<S, ForSound> {
     /// Creates a threaded renderer that pulls from an arbitrary sound
     pub fn new_sound(
+        name: &str,
         controllable: Controllable<S>,
         controller: Controller<S>,
     ) -> Result<Self, RawedioThreadingError> {
-        Self::new_inner(controllable, controller)
+        Self::new_inner(name, controllable, controller)
     }
 }
 
 impl<S: Sound + 'static, B: Send> ThreadedRenderer<S, B> {
     fn new_inner(
+        name: &str,
         controllable: Controllable<S>,
         controller: Controller<S>,
     ) -> Result<Self, RawedioThreadingError> {
@@ -74,6 +77,7 @@ impl<S: Sound + 'static, B: Send> ThreadedRenderer<S, B> {
         let channel_count = controllable.channel_count();
 
         let mut thread_manager = ThreadedSoundManager::<Controllable<S>>::new_with_timeout(
+            name,
             RENDERER_BUFFER_DURATION / 2,
         )?;
         let (_, rx) = thread_manager

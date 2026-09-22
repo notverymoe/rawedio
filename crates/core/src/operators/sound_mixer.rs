@@ -27,6 +27,7 @@ pub struct SoundMixer {
     next_output_channel_idx: usize,
     scratch_buffer: Vec<f32>,
     to_remove: Vec<(SoundId, bool)>,
+    to_retry: Vec<(SoundId, usize)>,
 }
 
 impl SoundMixer {
@@ -44,6 +45,7 @@ impl SoundMixer {
             next_output_channel_idx: 0,
             scratch_buffer: Vec::new(),
             to_remove: Vec::new(),
+            to_retry: Vec::new(),
         }
     }
 }
@@ -79,6 +81,65 @@ impl BackendSource for SoundMixer {
     }
 }
 
+impl SoundMixer {
+    fn process_sound(
+        to_remove: &mut Vec<(SoundId, bool)>,
+        to_retry: Option<&mut Vec<(SoundId, usize)>>,
+
+        scratch_buffer: &mut [f32],
+
+        id: SoundId,
+        sound: &mut MixedSound,
+    ) -> usize {
+        loop {
+            let next = sound.fill_next_frames(scratch_buffer);
+            match next {
+                Ok((count, NextState::Playing)) => {
+                    break count;
+                }
+                Ok((count, NextState::WouldBlock)) => {
+                    if let Some(to_retry) = to_retry {
+                        to_retry.push((id, count));
+                    }
+                    break count;
+                }
+                Ok((count, NextState::MetadataChanged)) => {
+                    // We know that the channel_count and sample_rate haven't changed because
+                    // we have wrapped the sound in converters. It is possible that the
+                    // MetadataChanged implies we need to start over at the first channel.
+                    // Normally however Metadata only change on the first sample of a frame
+                    // so handle that by looping around and calling next_sample again
+                    // immediately
+                    if count != 0 {
+                        // In the rare case we see MetadataChange not on
+                        // the first channel, lets pause the sound until the
+                        // next batch to avoid de-syncing the channels.
+                        to_remove.push((id, true));
+                        break 0;
+                    }
+
+                    // continue
+                }
+                Ok((count, NextState::Paused)) => {
+                    to_remove.push((id, true));
+                    break count;
+                }
+                Ok((count, NextState::Finished)) => {
+                    to_remove.push((id, false));
+                    break count;
+                }
+                Err(e) => {
+                    // TODO probably want to let applications subscribe to be notified of these
+                    // errors
+                    log::error!("dropping sound in SoundMixer which returned error: {e}");
+                    to_remove.push((id, false));
+                    break 0;
+                }
+            }
+        }
+    }
+}
+
 impl Sound for SoundMixer {
     fn channel_count(&self) -> usize {
         self.output_channel_count
@@ -109,53 +170,19 @@ impl Sound for SoundMixer {
             return Ok((0, NextState::MetadataChanged));
         }
 
-        self.scratch_buffer
-            .resize(usize::max(self.scratch_buffer.len(), buffer.len()), 0.0);
+        self.scratch_buffer.resize(buffer.len(), 0.0);
         buffer.fill(0.0);
 
         let mut max_written = 0;
 
         for (&id, sound) in &mut self.sounds {
-            let count = loop {
-                let next = sound.fill_next_frames(&mut self.scratch_buffer[..buffer.len()]);
-                match next {
-                    Ok((count, NextState::Playing)) => {
-                        break count;
-                    }
-                    Ok((count, NextState::MetadataChanged)) => {
-                        // We know that the channel_count and sample_rate haven't changed because
-                        // we have wrapped the sound in converters. It is possible that the
-                        // MetadataChanged implies we need to start over at the first channel.
-                        // Normally however Metadata only change on the first sample of a frame
-                        // so handle that by looping around and calling next_sample again
-                        // immediately
-                        if count != 0 {
-                            // In the rare case we see MetadataChange not on
-                            // the first channel, lets pause the sound until the
-                            // next batch to avoid de-syncing the channels.
-                            self.to_remove.push((id, true));
-                            break 0;
-                        }
-
-                        // continue
-                    }
-                    Ok((count, NextState::Paused)) => {
-                        self.to_remove.push((id, true));
-                        break count;
-                    }
-                    Ok((count, NextState::Finished)) => {
-                        self.to_remove.push((id, false));
-                        break count;
-                    }
-                    Err(e) => {
-                        // TODO probably want to let applications subscribe to be notified of these
-                        // errors
-                        log::error!("dropping sound in SoundMixer which returned error: {e}");
-                        self.to_remove.push((id, false));
-                        break 0;
-                    }
-                }
-            };
+            let count = Self::process_sound(
+                &mut self.to_remove,
+                Some(&mut self.to_retry),
+                &mut self.scratch_buffer,
+                id,
+                sound,
+            );
 
             max_written = usize::max(max_written, count);
 
@@ -164,6 +191,26 @@ impl Sound for SoundMixer {
                 buffer[..count]
                     .iter_mut()
                     .zip(self.scratch_buffer[..count].iter())
+                    .for_each(|(dst, src)| *dst += *src);
+            }
+        }
+
+        for (id, written) in self.to_retry.drain(..) {
+            let count = Self::process_sound(
+                &mut self.to_remove,
+                None,
+                &mut self.scratch_buffer[written..],
+                id,
+                self.sounds.get_mut(&id).unwrap(),
+            );
+
+            max_written = usize::max(max_written, written + count);
+
+            if count > 0 {
+                // Accumulate
+                buffer[written..written + count]
+                    .iter_mut()
+                    .zip(self.scratch_buffer[written..written + count].iter())
                     .for_each(|(dst, src)| *dst += *src);
             }
         }

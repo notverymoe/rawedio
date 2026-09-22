@@ -79,15 +79,11 @@ where S: Sound
     }
 
     fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
-        let next = self.inner.fill_next_frames(buffer)?;
-        let count = match next {
-            (_, NextState::Playing) => buffer.len(),
-            (count, NextState::MetadataChanged | NextState::Paused | NextState::Finished) => count,
-        };
+        let (count, next) = self.inner.fill_next_frames(buffer)?;
         buffer[..count]
             .iter_mut()
             .for_each(|s| *s *= self.volume_adjustment);
-        Ok(next)
+        Ok((count, next))
     }
 }
 

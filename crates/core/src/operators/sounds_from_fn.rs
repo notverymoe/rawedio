@@ -90,7 +90,9 @@ impl Sound for SoundsFromFn {
                     self.update_metadata();
                     return Ok(sample);
                 }
-                (_, NextState::Playing | NextState::Paused) => return Ok(sample),
+                (_, NextState::Playing | NextState::Paused | NextState::WouldBlock) => {
+                    return Ok(sample)
+                }
                 (count, NextState::Finished) => {
                     let old_channel_count = self.current_channel_count;
                     let old_sample_rate = self.current_sample_rate;

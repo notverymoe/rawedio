@@ -56,7 +56,7 @@ impl MemorySound {
             samples.resize(samples.len() + channel_count, 0.0);
             let sample = orig.fill_next_frames(&mut samples[from..])?;
             match sample {
-                (_, NextState::Playing) => (),
+                (_, NextState::Playing | NextState::WouldBlock) => (), // TODO ? sleep on block
                 (count, NextState::MetadataChanged) => {
                     if orig.channel_count() != channel_count || orig.sample_rate() != sample_rate {
                         return Err(RawedioError::IoError(std::io::Error::other(

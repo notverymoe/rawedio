@@ -7,12 +7,14 @@ use rawedio::Sound;
 use rawedio::wrappers::{Controllable, SetSpeed};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
-
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+    
     let Some(file_path) = args() else {
         eprintln!("usage: FILE_PATH");
         std::process::exit(2);
     };
+
+    log::info!("Playing {file_path}");
 
     let (mut manager, _backend) = rawedio_threaded::start()?;
 
@@ -31,8 +33,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Play some realtime speed warping
     let mut time = 1.0;
-    while notifier.try_recv().is_err() {
-        let speed = f32::sin(time) * 0.2 + 0.6;
+    while !notifier.is_finished() {
+        let speed = f32::sin(time) * 0.2 + 2.6;
         controller.send_command(Box::new(move |sound| sound.set_speed(speed)));
         std::thread::sleep(Duration::from_millis(4));
         time += 0.025;

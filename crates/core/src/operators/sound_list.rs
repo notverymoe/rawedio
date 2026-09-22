@@ -127,7 +127,13 @@ impl Sound for SoundList {
         };
 
         let ret = match next_sample {
-            (_, NextState::Playing | NextState::MetadataChanged | NextState::Paused) => next_sample,
+            (
+                _,
+                NextState::Playing
+                | NextState::MetadataChanged
+                | NextState::Paused
+                | NextState::WouldBlock,
+            ) => next_sample,
             (count, NextState::Finished) => {
                 self.sounds.remove(0);
                 if self.sounds.is_empty() {

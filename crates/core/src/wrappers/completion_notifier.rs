@@ -5,6 +5,28 @@ use std::sync::mpsc;
 use crate::wrappers::Wrapper;
 use crate::{NextState, RawedioError, Sound};
 
+/// Provides information about the finished state of a 
+/// wrapped sound.
+pub struct CompletionNotification(mpsc::Receiver<()>);
+
+impl CompletionNotification {
+
+    /// Blocks the current thread until the sound finishes
+    pub fn block_until_finished(self)  {
+        let _ = self.0.recv();
+    }
+
+    /// Returns if the sound is finished without blocking
+    #[must_use]
+    pub fn is_finished(&self) -> bool {
+        match self.0.try_recv() {
+            Ok(()) | Err(mpsc::TryRecvError::Disconnected) => true,
+            Err(_) => false,
+        }
+    }
+
+}
+
 /// Notify via a [`std::sync::mpsc::Receiver`] when the contained Sound has
 /// Finished. A single message is sent when the sound has completed.
 ///
@@ -23,14 +45,14 @@ impl<S> CompletionNotifier<S>
 where S: Sound
 {
     /// Wrap `inner` so a receiver can be notified when `inner` has `Finished`.
-    pub fn new(inner: S) -> (Self, mpsc::Receiver<()>) {
+    pub fn new(inner: S) -> (Self, CompletionNotification) {
         let (sender, receiver) = mpsc::sync_channel(1);
         let controllable = CompletionNotifier {
             inner,
             sender: Some(sender),
         };
 
-        (controllable, receiver)
+        (controllable, CompletionNotification(receiver))
     }
 }
 
@@ -53,6 +75,7 @@ where S: Sound
         let next = self.inner.fill_next_frames(buffer)?;
         if let (_, NextState::Finished) = next {
             if let Some(sender) = self.sender.take() {
+                log::debug!("Sound completed, sending notification");
                 // If the consumer dropped their receiver because they don't need it anymore its
                 // not an error.
                 let _res = sender.send(());

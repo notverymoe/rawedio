@@ -1,7 +1,7 @@
 //| Rawedio | Copyright 2026 Natalie Baker, et al | MIT / Apache License v2.0 |//
 
 use std::hash::BuildHasherDefault;
-use std::sync::mpsc::{self, Receiver, SendError, Sender, channel};
+use std::sync::mpsc;
 use std::thread::Thread;
 use std::time::Duration;
 
@@ -11,6 +11,10 @@ use rawedio::wrappers::SoundId;
 
 use crate::threaded_sound::{ThreadedSoundTx, create_threaded_sound};
 use crate::{RawedioThreadingError, ThreadedSoundRx};
+
+fn get_thread_name() -> String {
+    std::thread::current().name().unwrap_or_default().to_owned()
+}
 
 /// Manages sounds that render on another thread
 pub struct ThreadedSoundManager<S: Sound> {
@@ -26,11 +30,11 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
     ///
     /// Useful for background asset decoding.
     ///
-    pub fn new() -> Result<Self, RawedioThreadingError> {
-        let (tx, rx) = channel();
+    pub fn new(name: &str) -> Result<Self, RawedioThreadingError> {
+        let (tx, rx) = mpsc::channel();
         Ok(Self::new_with_thread(
             tx,
-            start_worker_thread(ThreadedSoundWorker::new(rx))?,
+            start_worker_thread(name, ThreadedSoundWorker::new(rx))?,
         ))
     }
 
@@ -40,11 +44,11 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
     ///
     /// Useful to bound the impact of the consumer lagging.
     ///
-    pub fn new_with_timeout(timeout: Duration) -> Result<Self, RawedioThreadingError> {
-        let (tx, rx) = channel();
+    pub fn new_with_timeout(name: &str, timeout: Duration) -> Result<Self, RawedioThreadingError> {
+        let (tx, rx) = mpsc::channel();
         Ok(Self::new_with_thread(
             tx,
-            start_worker_thread_timeout(timeout, ThreadedSoundWorker::new(rx))?,
+            start_worker_thread_timeout(name, timeout, ThreadedSoundWorker::new(rx))?,
         ))
     }
 
@@ -55,7 +59,7 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
     /// indicate that there are new commands or free buffers to process.
     ///
     #[must_use]
-    pub const fn new_with_thread(commands: Sender<WorkerCommand<S>>, thread: Thread) -> Self {
+    pub const fn new_with_thread(commands: mpsc::Sender<WorkerCommand<S>>, thread: Thread) -> Self {
         Self {
             next_id: 0,
             commands,
@@ -74,7 +78,7 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
         buffer_dur: Duration,
         buffer_count: usize,
         sound: S,
-    ) -> Result<(SoundId, ThreadedSoundRx), SendError<WorkerCommand<S>>> {
+    ) -> Result<(SoundId, ThreadedSoundRx), mpsc::SendError<WorkerCommand<S>>> {
         let (tx, rx) =
             create_threaded_sound(buffer_dur, buffer_count, sound, Some(self.thread.clone()));
 
@@ -90,7 +94,7 @@ impl<S: Sound + 'static> ThreadedSoundManager<S> {
     /// it. The `ThreadedSoundRx` will return `NextState::Finished`
     /// when it next runs out of buffered samples.
     ///
-    pub fn remove(&mut self, id: SoundId) -> Result<(), SendError<WorkerCommand<S>>> {
+    pub fn remove(&mut self, id: SoundId) -> Result<(), mpsc::SendError<WorkerCommand<S>>> {
         self.commands.send(WorkerCommand::Remove(id))?;
         self.thread.unpark();
         Ok(())
@@ -123,7 +127,7 @@ pub struct ThreadedSoundWorker<S: Sound> {
 }
 
 impl<S: Sound> ThreadedSoundWorker<S> {
-    pub fn new(rx: Receiver<WorkerCommand<S>>) -> Self {
+    pub fn new(rx: mpsc::Receiver<WorkerCommand<S>>) -> Self {
         Self {
             commands: Some(rx),
             jobs: NoHashIndexMap::with_capacity_and_hasher(32, BuildHasherDefault::default()),
@@ -131,17 +135,26 @@ impl<S: Sound> ThreadedSoundWorker<S> {
         }
     }
 
-    pub const fn is_running(&self) -> bool {
-        self.commands.is_some()
-    }
-
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> bool {
         let Some(commands) = &self.commands else {
-            return;
+            return false;
         };
 
         // Process commands
-        for command in commands.try_iter() {
+        loop {
+            let command = match commands.try_recv() {
+                Ok(command) => command,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    log::debug!("Stopped audio pipeline '{}', disconnected.", get_thread_name());
+                    self.commands = None;
+                    self.jobs.clear();
+                    self.to_remove.clear();
+                    return false;
+                },
+                Err(_) => {
+                    break;
+                }
+            };
             match command {
                 WorkerCommand::Insert(id, value) => {
                     self.jobs.insert(id, value);
@@ -150,57 +163,59 @@ impl<S: Sound> ThreadedSoundWorker<S> {
                     self.jobs.swap_remove(&id);
                 }
                 WorkerCommand::Stop => {
+                    log::debug!("Stopped audio pipeline '{}', on command.", get_thread_name());
                     self.commands = None;
-                    return;
+                    return false;
                 }
             }
         }
 
         // Process jobs
         for (id, job) in &mut self.jobs {
-            if !job.is_connected() {
+            if !job.update() {
                 self.to_remove.push(*id);
-                continue;
             }
-
-            job.update();
         }
 
         // Remove finished/errored jobs
         for id in self.to_remove.drain(..).rev() {
             self.jobs.swap_remove(&id);
         }
+
+        true
     }
 }
 
 fn start_worker_thread<S: Sound + 'static>(
+    name: &str,
     mut tx: ThreadedSoundWorker<S>,
 ) -> Result<Thread, RawedioThreadingError> {
     Ok(std::thread::Builder::new()
-        .name("threaded_rawedio_renderer".to_owned())
+        .name(name.to_owned())
         .spawn(move || {
-            log::info!("th start");
-            while tx.is_running() {
-                tx.update();
+            log::debug!("Started audio pipeline '{}'.", get_thread_name());
+            while tx.update() {
                 std::thread::park();
             }
-            log::info!("th end");
+            log::debug!("Stopped audio pipeline '{}'.", get_thread_name());
         })?
         .thread()
         .clone())
 }
 
 fn start_worker_thread_timeout<S: Sound + 'static>(
+    name: &str,
     park_timeout: Duration,
     mut tx: ThreadedSoundWorker<S>,
 ) -> Result<Thread, RawedioThreadingError> {
     Ok(std::thread::Builder::new()
-        .name("threaded_rawedio_renderer".to_owned())
+        .name(name.to_owned())
         .spawn(move || {
-            while tx.is_running() {
-                tx.update();
+            log::debug!("Started audio pipeline '{}'.", get_thread_name());
+            while tx.update() {
                 std::thread::park_timeout(park_timeout);
             }
+            log::debug!("Stopped audio pipeline '{}'.", get_thread_name());
         })?
         .thread()
         .clone())
