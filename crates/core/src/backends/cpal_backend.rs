@@ -176,19 +176,25 @@ where
         // Process sounds to fill scratch buffer
         renderer.on_start_of_batch();
 
-        match renderer
+        let (count, next_state) = renderer
             .fill_next_frames(&mut scratch_buffer)
-            .expect("renderer should never return an Error")
-        {
-            (_, NextState::Playing) => {
+            .expect("renderer should never return an Error");
+
+        // Zero section of buffer that is unfilled.
+        scratch_buffer[count..].fill(0.0);
+
+        match next_state {
+            NextState::Playing => {
                 // Buffer filled, excellent
             }
-            (_, NextState::MetadataChanged) => {
+            NextState::WouldBlock => {
+                // TODO retry logic at backend level? or unreachable?
+            }
+            NextState::MetadataChanged => {
                 unreachable!("we never change metadata mid-batch")
             }
-            (count, NextState::Paused | NextState::Finished) => {
-                scratch_buffer[count..].fill(0.0);
-                // TODO: implement Finished/Paused
+            NextState::Paused | NextState::Finished => {
+                // TODO implement Finished/Paused
             }
         }
 

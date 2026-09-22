@@ -32,8 +32,8 @@ impl ThreadedManager {
     pub fn new() -> Result<(Self, ThreadedRendererMixer), RawedioThreadingError> {
         let (mixer, mixer_controller) =
             Controllable::new(SoundMixer::new(DEFAULT_CHANNEL_COUNT, DEFAULT_SAMPLE_RATE));
-        let decode_manager = ThreadedSoundManager::new()?;
-        let renderer = ThreadedRendererMixer::new_mixer(mixer, mixer_controller.clone())?;
+        let decode_manager = ThreadedSoundManager::new("rawedio_decode")?;
+        let renderer = ThreadedRendererMixer::new_mixer("rawedio_mixer", mixer, mixer_controller.clone())?;
         let manager = ThreadedManager {
             mixer_controller,
             decode_manager,

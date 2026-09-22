@@ -61,8 +61,9 @@ where R: Read + Send
             match self.next_sample() {
                 Ok(NextSample::Sample(s)) => *dst = s,
                 Ok(NextSample::MetadataChanged) => return Ok((i, NextState::MetadataChanged)),
-                Ok(NextSample::Finished) => return Ok((i, NextState::Finished)),
+                Ok(NextSample::WouldBlock) => return Ok((i, NextState::WouldBlock)),
                 Ok(NextSample::Paused) => return Ok((i, NextState::Paused)),
+                Ok(NextSample::Finished) => return Ok((i, NextState::Finished)),
                 Err(e) => return Err(e),
             }
         }
@@ -212,6 +213,7 @@ mod tests {
             match sample {
                 NextState::Playing => {}
                 NextState::MetadataChanged => unreachable!(),
+                NextState::WouldBlock => unreachable!(),
                 NextState::Paused => unreachable!(),
                 NextState::Finished => unreachable!(),
             }

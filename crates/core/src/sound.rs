@@ -7,8 +7,7 @@ use crate::sources::MemorySound;
 #[cfg(feature = "async")]
 use crate::wrappers::AsyncCompletionNotifier;
 use crate::wrappers::{
-    AdjustableSpeed, AdjustableVolume, CompletionNotifier, Controllable, Controller, FinishAfter,
-    Pausable, SetPaused, Stoppable,
+    AdjustableSpeed, AdjustableVolume, CompletionNotification, CompletionNotifier, Controllable, Controller, FinishAfter, Pausable, SetPaused, Stoppable
 };
 use crate::{utils, RawedioError};
 
@@ -88,7 +87,7 @@ pub trait Sound: Send {
 
     /// Get notified via a [`std::sync::mpsc::Receiver`] when this sound
     /// has Finished.
-    fn with_completion_notifier(self) -> (CompletionNotifier<Self>, std::sync::mpsc::Receiver<()>)
+    fn with_completion_notifier(self) -> (CompletionNotifier<Self>, CompletionNotification)
     where Self: Sized {
         CompletionNotifier::new(self)
     }
@@ -189,6 +188,7 @@ pub trait Sound: Send {
                         scratch.resize(current_channel_count, 0.0);
                     }
                 }
+                (_, NextState::WouldBlock) => return Ok(false),
                 (_, NextState::Paused) => return Ok(false),
                 (_, NextState::Finished) => return Ok(false),
             }
@@ -218,6 +218,19 @@ pub enum NextState {
     /// should return no written samples until unpaused. The caller
     /// should determine how to handle the silence (fade, insert 0s).
     Paused,
+
+    /// The sound would need to block to return additional samples. It
+    /// should be possible to pull additional samples during this
+    /// batch of samples, provided some time elapses. This is useful
+    /// for operators like `SoundMixer`.
+    ///
+    /// Retries should only request with the remaining slice of the
+    /// buffer that did not receive samples in the previous calls.
+    ///
+    /// If retrying is not possible, treat `WouldBlock` as `Playing`
+    /// and fill the remaining samples with silence, as the Sound is
+    /// not truly paused and expects to have additional samples soon.
+    WouldBlock,
 
     /// The sound has finished playback and will never resume playback,
     /// The caller should free the sound, or stop its own playback.

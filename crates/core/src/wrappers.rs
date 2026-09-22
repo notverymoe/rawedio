@@ -25,7 +25,7 @@ pub use adjustable_volume::{AdjustableVolume, SetVolume};
 #[cfg(feature = "async")]
 pub use async_completion_notifier::AsyncCompletionNotifier;
 pub use channel_count_converter::ChannelCountConverter;
-pub use completion_notifier::CompletionNotifier;
+pub use completion_notifier::{CompletionNotifier, CompletionNotification};
 pub use controllable::{Controllable, Controller};
 pub use finish_after::FinishAfter;
 pub use pausable::{Pausable, SetPaused};

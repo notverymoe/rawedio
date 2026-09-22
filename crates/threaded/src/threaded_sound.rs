@@ -3,6 +3,7 @@
 use std::thread::Thread;
 use std::time::Duration;
 
+use portable_atomic::{AtomicUsize, Ordering};
 use rawedio::{NextState, RawedioError, Sound};
 
 use crate::sync::{PoolQueueCons, PoolQueueProd, create_pool_queue};
@@ -53,6 +54,7 @@ pub fn create_threaded_sound<S: Sound>(
             channel_count,
             samples_filled: 0,
             wake_thread,
+            underrun_count: AtomicUsize::new(0),
         },
     )
 }
@@ -72,6 +74,17 @@ pub struct ThreadedSoundRx {
     channel_count: usize,
     samples_filled: usize,
     wake_thread: Option<Thread>,
+    underrun_count: AtomicUsize,
+}
+
+impl ThreadedSoundRx {
+    /// Returns the total number of samples that
+    /// have been underrun, because the tx thread
+    /// failed to supply them in time. Ideally 0.
+    #[must_use]
+    pub fn underrun_count(&self) -> usize {
+        self.underrun_count.load(Ordering::Relaxed)
+    }
 }
 
 impl Sound for ThreadedSoundRx {
@@ -86,12 +99,10 @@ impl Sound for ThreadedSoundRx {
     fn fill_next_frames(&mut self, buffer: &mut [f32]) -> Result<(usize, NextState), RawedioError> {
         let mut next_state = NextState::Playing;
         let mut samples_written = 0;
-        let mut did_recv_slot = false;
-        while (samples_written < buffer.len())
+        while (samples_written < buffer.len()) 
             && let Some(mut slot) = self.rx.dequeue()
         {
             slot.dismiss(); // We'll manually return the slot to the tx
-            did_recv_slot = true;
 
             let sample_count = usize::min(
                 buffer.len() - samples_written,
@@ -120,12 +131,14 @@ impl Sound for ThreadedSoundRx {
             }
         }
 
-        if samples_written == 0 && next_state == NextState::Playing {
-            next_state = NextState::Paused;
+        if samples_written < buffer.len() && next_state == NextState::Playing {
+            next_state = NextState::WouldBlock;
+            self.underrun_count
+                .fetch_add(buffer.len() - samples_written, Ordering::Relaxed);
         }
 
         // If there are no slots with samples and it's disconnected, then stop the sound.
-        if !did_recv_slot && !self.rx.is_connected() {
+        if !self.rx.is_connected() {
             next_state = NextState::Finished;
         }
 
@@ -151,6 +164,11 @@ impl<S: Sound> ThreadedSoundTx<S> {
             return false;
         };
 
+        if !tx.is_connected() {
+            self.tx = None;
+            return false;
+        }
+
         let mut should_stop = false;
         while let Some(mut buffer) = tx.enqueue() {
             buffer.samples.resize(
@@ -170,7 +188,7 @@ impl<S: Sound> ThreadedSoundTx<S> {
                     buffer.next_state = next;
                     buffer.channel_count = self.inner.channel_count();
                     buffer.sample_rate = self.inner.sample_rate();
-                    if matches!(next, NextState::Finished) {
+                    if next == NextState::Finished {
                         should_stop = true;
                         break;
                     }
@@ -189,6 +207,6 @@ impl<S: Sound> ThreadedSoundTx<S> {
             self.tx = None;
         }
 
-        should_stop
+        !should_stop
     }
 }

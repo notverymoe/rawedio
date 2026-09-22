@@ -5,10 +5,14 @@ use std::error::Error;
 use rawedio::{NextState, Sound};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+
     let Some(file_path) = args() else {
         eprintln!("usage: FILE_PATH");
         std::process::exit(2);
     };
+
+    log::info!("Playing {file_path}");
 
     let mut sound = rawedio::sources::open_file(file_path)?;
     let mut num_samples = 0;
@@ -20,6 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         num_samples += count;
         match next {
             NextState::Playing => (),
+            NextState::WouldBlock => (),
             NextState::Paused => {
                 println!("Encountered a Pause. Stopping.");
                 break;

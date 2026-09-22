@@ -22,6 +22,19 @@ pub enum NextSample {
     /// Sound will not be pulled again during this batch of samples.
     Paused,
 
+    /// The sound would need to block to return additional samples. It
+    /// should be possible to pull additional samples during this
+    /// batch of samples, provided some time elapses. This is useful
+    /// for operators like `SoundMixer`.
+    ///
+    /// Retries should only request with the remaining slice of the
+    /// buffer that did not receive samples in the previous calls.
+    ///
+    /// If retrying is not possible, treat `WouldBlock` as `Playing`
+    /// and fill the remaining samples with silence, as the Sound is
+    /// not truly paused and expects to have additional samples soon.
+    WouldBlock,
+
     /// All samples have been retrieved and no more will come.
     Finished,
 }
@@ -31,6 +44,7 @@ impl From<NextSample> for NextState {
         match value {
             NextSample::Sample(_) => NextState::Playing,
             NextSample::MetadataChanged => NextState::MetadataChanged,
+            NextSample::WouldBlock => NextState::WouldBlock,
             NextSample::Paused => NextState::Paused,
             NextSample::Finished => NextState::Finished,
         }
@@ -50,11 +64,12 @@ impl SampleBySample {
         }
     }
 
-    fn refill(&mut self, other: &mut dyn Sound) -> Result<NextState, RawedioError> {
+    fn refill(&mut self, other: &mut dyn Sound) -> Result<(), RawedioError> {
         self.buffer.resize(other.channel_count(), 0.0);
         let (count, next) = other.fill_next_frames(&mut self.buffer)?;
         self.buffer.truncate(count);
-        Ok(std::mem::replace(&mut self.response, next))
+        self.response = next;
+        Ok(())
     }
 
     pub fn next_sample(&mut self, other: &mut dyn Sound) -> Result<NextSample, RawedioError> {
@@ -66,6 +81,7 @@ impl SampleBySample {
                     self.refill(other)?;
                     self.next_sample(other)
                 }
+                NextState::WouldBlock => Ok(NextSample::WouldBlock),
                 NextState::MetadataChanged => Ok(NextSample::MetadataChanged),
                 NextState::Paused => Ok(NextSample::Paused),
                 NextState::Finished => Ok(NextSample::Finished),
@@ -91,7 +107,12 @@ impl SampleBySample {
             let next = self.next_sample(other);
             match next {
                 Ok(NextSample::Sample(s)) => samples.push(s),
-                Ok(NextSample::MetadataChanged | NextSample::Paused | NextSample::Finished)
+                Ok(
+                    NextSample::WouldBlock
+                    | NextSample::MetadataChanged
+                    | NextSample::Paused
+                    | NextSample::Finished,
+                )
                 | Err(_) => return Err(next),
             }
         }

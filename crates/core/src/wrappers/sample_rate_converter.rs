@@ -116,6 +116,10 @@ where S: Sound
                 Err(special) => match special {
                     Ok(NextSample::Sample(_)) => unreachable!(),
                     Ok(NextSample::MetadataChanged) => Err(None),
+                    Ok(NextSample::WouldBlock) => {
+                        self.inner_paused = false;
+                        Ok(Vec::new())
+                    }
                     Err(e) => Err(Some(e)),
                     Ok(NextSample::Paused) => {
                         self.inner_paused = true;
@@ -161,6 +165,7 @@ where S: Sound
             // We handle not having any more samples left outside this function
             Err(Ok(NextSample::Paused)) => self.inner_paused = true,
             Err(Ok(NextSample::Finished)) => self.inner_paused = false,
+            Err(Ok(NextSample::WouldBlock)) => self.inner_paused = false,
             Err(Err(e)) => return Err(e),
         }
         Ok(true)
@@ -195,6 +200,7 @@ where S: Sound
             match self.next_sample() {
                 Ok(NextSample::Sample(s)) => *dst = s,
                 Ok(NextSample::MetadataChanged) => return Ok((i, NextState::MetadataChanged)),
+                Ok(NextSample::WouldBlock) => return Ok((i, NextState::WouldBlock)),
                 Ok(NextSample::Finished) => return Ok((i, NextState::Finished)),
                 Ok(NextSample::Paused) => return Ok((i, NextState::Paused)),
                 Err(e) => return Err(e),
@@ -221,7 +227,10 @@ where S: Sound
             debug_assert_eq!(self.from_rate_scaled, 1);
             let next = self.helper.next_sample(&mut self.inner)?;
             match next {
-                NextSample::Sample(_) | NextSample::Paused | NextSample::Finished => {
+                NextSample::Sample(_)
+                | NextSample::Paused
+                | NextSample::Finished
+                | NextSample::WouldBlock => {
                     return Ok(next);
                 }
                 NextSample::MetadataChanged => {
